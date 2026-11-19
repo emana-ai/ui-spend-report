@@ -17,6 +17,8 @@ custo anualizado da manutenção. Tudo roda na máquina do usuário; nenhum dado
 `<skill>` abaixo é o diretório deste arquivo. Use `python3` (no Windows, `python` ou `py -3`).
 Só biblioteca padrão do Python 3.8+ e o `gh`. Nada para instalar além disso.
 
+Para instalar via HTTPS, rode `git clone https://github.com/emana-ai/ui-spend-report ~/.claude/skills/ui-spend-report`.
+
 ## Quando usar
 
 O usuário (em geral CTO ou líder de engenharia) quer ver o número do próprio time, numa
@@ -80,7 +82,7 @@ python3 <skill>/scripts/report.py --out ui-spend-report-ORG --monthly-cost 25000
 `classify.py` grava `ambiguous.json`: diretórios cujos arquivos nenhuma regra classificou, com
 linhas, extensões, caminhos e títulos de PR de exemplo, do maior para o menor.
 
-1. Leia os grupos que somam ~90% das linhas ambíguas (os primeiros; ignore a cauda).
+1. Exclua primeiro artefatos de build. Revise os grupos pelo peso limitado por arquivo e diretório, até que o restante ambíguo seja ruído.
 2. Para cada um, decida a área pelo caminho e pelos títulos: `interface`, `backend`, `infra`,
    `tests`, `data`, `docs` ou `other`. Interface = o que o usuário final vê ou o que só existe
    para a tela: componentes, telas, estilos, rotas de front-end, estado e chamadas de API do
@@ -89,7 +91,7 @@ linhas, extensões, caminhos e títulos de PR de exemplo, do maior para o menor.
    unitários já seguem sozinhos a área do código que testam.
 3. Grave `ui-spend-report-ORG/overrides.json`: `{"repo/caminho/": "area", ...}`. Pode usar um
    prefixo mais curto que o do grupo quando todo o subdiretório for da mesma área.
-4. Rode `classify.py` de novo e confira que a lista encolheu.
+4. Confira no resumo as principais extensões e repositórios por área, inclusive arquivos que as regras já classificaram. Para corrigir uma regra use, por exemplo, `{"app-*/*.kt": {"force": "interface"}}`. Para retirar arquivos do score use `{"app-*/bundles/*": "exclude"}`. Rode de novo e confira o restante.
 
 Você só escolhe áreas de diretórios. **Nunca escreva números**: todo número do relatório vem de
 `report.py`. Não edite o HTML nem o JSON gerados.

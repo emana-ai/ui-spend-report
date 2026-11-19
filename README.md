@@ -10,7 +10,7 @@ produces a local, self-contained HTML report with four numbers:
 - how much of it is maintenance of screens that already exist;
 - what that maintenance costs per year.
 
-The report itself is written in Brazilian Portuguese.
+The Brazilian Portuguese report opens with the four estimates, then charts monthly investment, repository concentration and maintenance. The expandable appendix contains the complete breakdown and method. Embedded fonts and inline charts work offline.
 
 ## Privacy
 

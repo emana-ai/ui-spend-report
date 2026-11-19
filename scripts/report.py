@@ -15,10 +15,10 @@ import classify, defaults
 
 _MAINT = re.compile(defaults.MAINTENANCE, re.I)
 _NEW = re.compile(defaults.NEW_WORK, re.I)
-AREA_PT = {"interface": "Interface", "backend": "Backend", "infra": "Infra e build", "tests": "Testes de integração",
+AREA_PT = {"tooling": "Ferramentas de IA", "interface": "Interface", "backend": "Backend", "infra": "Infra e build", "tests": "Testes de integração",
            "data": "Dados", "docs": "Documentação", "other": "Outros / não classificado"}
 SYMBOL = {"BRL": "R$", "USD": "US$", "EUR": "€", "GBP": "£"}
-EXCL_PT = {"lockfile": "lockfiles", "vendored": "código de terceiros", "build": "build/minificado",
+EXCL_PT = {"lockfile": "lockfiles", "third_party": "código de terceiros", "override": "exceções locais", "build": "build/minificado",
            "snapshot": "snapshots", "migration": "migrations", "translation": "traduções para outros idiomas",
            "generated": "código gerado"}
 MESES = "jan fev mar abr mai jun jul ago set out nov dez".split()
@@ -97,14 +97,16 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         for path, add, dele in pr["files"]:
             lines = add + dele
             lines_total += lines
-            cat = classify.exclusion(path)
+            cat = classify.file_exclusion(path, lines)
+            a, kind = classify.area_kind(pr["repo"], path, overrides, index)
+            if a == "exclude" and cat in (None, "binary"):
+                cat = "override"
             if cat and cat != "binary":
-                excluded[cat] += lines
+                excluded["third_party" if cat == "vendored" else cat] += lines
                 continue
             if cat == "binary":
                 excluded["binary"] += lines
                 lines = 0
-            a, kind = classify.area_kind(pr["repo"], path, overrides, index)
             if kind:
                 test_lines[kind] += lines
             if a is None:
@@ -193,7 +195,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         "top_dirs_by_area": {a: [{"path": d + "/", "cost": dc[d], "share_of_area": share(dc[d], by_area[a]),
                                   "maintenance_share": share(dir_m[a][d], dc[d])}
                                  for d in sorted(dc, key=lambda d: (-dc[d], d))[:defaults.TOP_DIRS]]
-                             for a, dc in sorted(dir_cost.items())},
+                             for a, dc in sorted(dir_cost.items()) if a != "tooling"},
     })
 
 
@@ -237,10 +239,6 @@ def date_br(iso):
     return f"{d}/{m}/{y}"
 
 
-def bar(x, cls=""):
-    return f'<div class="bar {cls}"><span style="width:{max(0.0, min(100.0, 100 * x)):.1f}%"></span></div>'
-
-
 # ---------------------------------------------------------------- HTML
 CSS = (Path(__file__).resolve().parents[1] / "assets" / "report.css").read_text(encoding="utf-8")  # one block, inlined
 
@@ -248,96 +246,59 @@ CSS = (Path(__file__).resolve().parents[1] / "assets" / "report.css").read_text(
 def render(r):
     e = html.escape
     cur, h, c, ui, ln = r["params"]["currency"], r["headline"], r["counts"], r["interface"], r["lines"]
-    M = lambda x: money(x, cur)
+    M = lambda x: e(money(x, cur))
     months = r["period"]["months"]
     period = f"{month(months[0])} a {month(months[-1])}"
     n_m = len(months)
     org = e(r["org"])
-    top_repo = next((x for x in sorted(r["by_repo"], key=lambda x: (-x["interface_cost"], x["repo"]))), None)
     top_dirs = r["top_dirs_by_area"].get("interface", [])
     top_dir = top_dirs[0] if top_dirs else None
-    ui_by_month = [m for m in r["by_month"] if m["cost"]]
-    second = next(a for a in r["areas"] if a["area"] != "interface")
-    others = sum(a["cost"] for a in r["areas"] if a["area"] != "interface")
-    others_m = sum(a["cost"] * a["maintenance_share"] for a in r["areas"] if a["area"] != "interface")
-
-    lede = [f"Isso dá {M(h['interface_monthly_cost'])} por mês, cerca de {num(ui['monthly_hours'])} horas, "
-            f"o equivalente a {num(ui['fte'], 1)} pessoas em tempo integral só em interface."]
-    lede.append(f"Só a manutenção de interface custa {M(h['interface_maintenance_annual_cost'])} por ano no ritmo atual.")
-    if top_repo and ui["cost"]:
-        lede.append(f"O repositório {e(top_repo['repo'])} concentra {pct(top_repo['interface_cost'] / ui['cost'])} "
-                    f"desse custo.")
-    if len(ui_by_month) >= 2:
-        a, b = ui_by_month[0], ui_by_month[-1]
-        lede.append(f"A fatia de interface foi de {pct(a['interface_share'])} em {month(a['month'])} "
-                    f"para {pct(b['interface_share'])} em {month(b['month'])}.")
-
-    stats = [
-        (pct(h["interface_share"]), "do tempo de engenharia foi para interface"),
-        (M(h["interface_monthly_cost"]), "por mês em interface"),
-        (pct(h["interface_maintenance_share"]), "da interface foi manutenção do que já existia"),
-        (M(h["interface_maintenance_annual_cost"]), "por ano em manutenção de interface (anualizado)"),
-    ]
-    out = [f"""<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>UI Spend Report · {org}</title><style>{CSS}</style></head><body>
-<header class="top"><span>{org}</span><span>UI Spend Report</span></header><main>
-<div class="eyebrow">UI Spend Report · {org} · {period}</div>
-<h1>{pct(h['interface_share'])} do tempo de engenharia de {org} nos últimos {n_m} meses foi para interface,
-e {pct(h['interface_maintenance_share'])} disso foi manutenção do que já existia.</h1>
-<p class="lede">{' '.join(lede)}</p>
-<div class="meta"><span>Período: {period}</span><span>Fonte: {num(c['prs_merged'])} PRs mergeados em {c['repos']}
-repositórios do GitHub</span><span>{num(c['developers'])} pessoas no time, {num(c['developer_months'])} pessoas-mês</span>
-<span>Gerado em: {date_br(r['collected_on'])}</span></div>
+    repos = sorted((x for x in r["by_repo"] if x["interface_cost"]), key=lambda x: (-x["interface_cost"], x["repo"]))
+    share = h["interface_share"]
+    ms = h["interface_maintenance_share"]
+    logo = (Path(__file__).resolve().parents[1] / "assets/wordmark.html").read_text(encoding="utf-8")
+    out = [f"""<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UI Spend Report · {org}</title><style>{CSS}</style><body>
+<header>{logo}<span>UI Spend Report</span></header><main>
+<div class="hero"><div><div class="eyebrow">{org}　/　{period}</div>
+<h1>A interface absorveu <em>{pct(share)}</em> do esforço de engenharia.</h1></div>
+<svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Interface: {pct(share)} do esforço estimado">
+<circle cx="60" cy="60" r="47" fill="none" stroke="#294149" stroke-width="11"/>
+<circle cx="60" cy="60" r="47" fill="none" stroke="#94e4dd" stroke-width="11" pathLength="100"
+stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
+<text x="60" y="64" text-anchor="middle" fill="currentColor" font-size="13">Interface</text></svg></div>
 <div class="stats">"""]
-    out += [f'<div class="stat"><b>{v}</b><small>{t}</small></div>' for v, t in stats]
-    out.append("</div>")
-
-    # 01 areas
-    out.append(f"""<section><div class="kicker">01 · Onde vai o tempo</div>
-<h2>Interface é {pct(h['interface_share'])} do tempo; {AREA_PT[second['area']].lower()}, {pct(second['share'])}</h2>
-<p>Custo do time no período: {M(r['cost']['team_total'])} ({M(r['cost']['team_monthly'])} por mês).
-Cada PR recebe a parte do custo mensal de quem o mergeou, dividida entre as áreas pelas linhas alteradas.</p>
-<div class="rows">""")
-    for a in r["areas"]:
-        if a["cost"]:
-            out.append(f"<div>{AREA_PT[a['area']]}</div>{bar(a['share'], '' if a['area'] == 'interface' else 'warm')}"
-                       f"<div class='v'>{pct(a['share'])} · {M(a['cost'] / n_m)}/mês · {num(a['monthly_hours'])} h/mês</div>")
-    out.append("</div></section>")
-
+    for value, label in [(pct(share), "do esforço em interface"), (M(h['interface_monthly_cost']), "por mês em interface"),
+                         (pct(ms), "da interface em manutenção"), (M(h['interface_maintenance_annual_cost']), "por ano em manutenção, no ritmo atual")]:
+        out.append(f"<div><b>{value}</b><small>{label}</small></div>")
+    out.append("</div><article><section><div class='eyebrow'>Evolução mensal</div><h2>Quanto da engenharia foi para interface?</h2><div class='trend'>")
+    for m in r["by_month"]:
+        value = m["interface_share"]
+        out.append(f"<div><strong>{pct(value)}</strong><svg viewBox='0 0 24 100' aria-hidden='true'><rect width='24' height='100' fill='#e1e8e6'/><rect y='{100-100*value:.4f}' width='24' height='{100*value:.4f}' fill='#217973'/></svg><small>{month(m['month'])}</small></div>")
+    out.append("</div></section><section><div class='eyebrow'>Distribuição por repositório</div><h2>Onde se concentra o investimento em interface?</h2>")
+    for repo in repos[:5]:
+        fraction = repo["interface_cost"] / ui["cost"]
+        out.append(f"<div class='rank'><span>{e(repo['repo'])}</span><strong>{pct(fraction)}</strong><svg viewBox='0 0 100 1' preserveAspectRatio='none' aria-hidden='true'><rect width='100' height='1' fill='#e1e8e6'/><rect width='{100*fraction:.4f}' height='1' fill='#217973'/></svg></div>")
+    if not repos:
+        out.append("<p>Nenhum custo atribuído à interface no período.</p>")
+    out.append(f"""</section><section class="maintenance"><div class="eyebrow">Composição do custo de interface</div>
+<h2>Quanto custa manter o que já existe?</h2><p>No período, {M(ui['maintenance_cost'])} foram para correções e ajustes.</p>
+<svg viewBox="0 0 100 1" preserveAspectRatio="none" aria-label="Manutenção: {pct(ms)}" role="img">
+<rect width="100" height="1" fill="#dee6e3"/><rect width="{100*ms:.4f}" height="1" fill="#217973"/></svg>
+<div class="legend"><span>Manutenção · {pct(ms)}</span><span>Trabalho novo · {M(ui['new_cost'])}</span></div></section>""")
+    out.append("</article><details><summary>Apêndice · dados completos e método</summary><section><h2>Custo por área</h2><dl>")
+    for row in r["areas"]:
+        out.append(f"<dt>{AREA_PT[row['area']]}</dt><dd>{pct(row['share'], 1)} · {M(row['cost'])}</dd>")
+    out.append("</dl></section>")
     # 02 repos
     out.append(f"""<section><div class="kicker">02 · Por repositório</div>
-<h2>{('Onde a interface mora: ' + e(top_repo['repo'])) if top_repo else 'Repositórios'}</h2>
+<h2>Todos os repositórios</h2>
 <table><tr><th>Repositório</th><th class="n">PRs</th><th class="n">Custo no período</th><th class="n">% interface</th>
 <th class="n">Manutenção na interface</th></tr>""")
     for x in r["by_repo"]:
         out.append(f"<tr><td><code>{e(x['repo'])}</code></td><td class='n'>{num(x['prs'])}</td><td class='n'>{M(x['cost'])}</td>"
                    f"<td class='n'>{pct(x['interface_share'])}</td><td class='n'>{pct(x['interface_maintenance_share'])}</td></tr>")
     out.append("</table></section>")
-
-    # 03 months
-    peak = max((m["interface_share"] for m in r["by_month"]), default=0) or 1
-    out.append(f"""<section><div class="kicker">03 · Mês a mês</div>
-<h2>Fatia de interface em cada mês</h2>
-<p class="muted">Altura = % do custo do mês que foi para interface. O custo de um mês sem PR de alguém entra no mês do
-próximo PR dessa pessoa ({pct(r['cost']['carried_share'])} do custo total foi carregado assim).</p><div class="cols">""")
-    for m in r["by_month"]:
-        out.append(f"<div class='col'><em>{pct(m['interface_share'])}</em>"
-                   f"<span style='height:{80 * m['interface_share'] / peak:.1f}%'></span></div>")
-    out.append("</div><div class='collabels'>" + "".join(f"<div>{month(m['month'])}<br>{M(m['interface_cost'])}</div>"
-                                                         for m in r["by_month"]) + "</div></section>")
-
-    # 04 maintenance
-    ms = h["interface_maintenance_share"]
-    out.append(f"""<section><div class="kicker">04 · Manutenção x interface nova</div>
-<h2>{pct(ms)} do custo de interface foi em correções e ajustes</h2>
-<div class="split"><span style="width:{100 * (1 - ms):.1f}%;background:var(--accent)">{pct(1 - ms)} nova</span>
-<span style="width:{100 * ms:.1f}%;background:var(--warm)">{pct(ms)} manutenção</span></div>
-<div class="legend"><span><i style="background:var(--accent)"></i>Interface nova: {M(ui['new_cost'])}</span>
-<span><i style="background:var(--warm)"></i>Manutenção: {M(ui['maintenance_cost'])}</span></div>
-<p style="margin-top:18px">Um PR conta como manutenção quando o título ou um rótulo indica correção ou ajuste
-(fix, bug, hotfix, regressão, ajuste, layout, css, typo, copy, style). {pct(c['prs_maintenance'] / c['prs_scored'] if c['prs_scored'] else 0)}
-dos PRs do período são assim. No resto do código a manutenção é {pct(others_m / others if others else 0)} do custo.</p></section>""")
 
     # 05 directories
     out.append(f"""<section><div class="kicker">05 · Onde a interface pesa</div>
@@ -390,7 +351,7 @@ linhas (arquivo sem linhas conta 1).</dd>
 contam como arquivo, sem linhas.</dd>
 <dt>Áreas</dt><dd>Regras determinísticas por caminho e extensão; caminhos ambíguos classificados pelo agente
 (caminho + título do PR) num arquivo de exceções. Os números vêm sempre do script.{tests_txt}</dd>
-</dl></section>
+</dl></section></details>
 <footer>Gerado no seu ambiente. Nenhum dado saiu dele.</footer></main></body></html>
 """)
     return "\n".join(out)

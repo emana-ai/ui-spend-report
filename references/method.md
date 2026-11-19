@@ -50,8 +50,9 @@ marca uma suíte de integração. `False` volta ao comportamento antigo (todo te
 
 O que nenhuma regra resolve vai para `ambiguous.json`, agrupado por diretório. O agente decide a
 área de cada grupo pelo caminho e pelos títulos de PR e grava `overrides.json`
-(`{"<repo>/<prefixo>": "<área>"}`, prefixo mais longo vence). Overrides só valem para arquivos
-ambíguos. O que continuar ambíguo conta como `other`.
+(`{"<repo>/<prefixo>": "<área>"}`, prefixo mais longo vence). Valores simples de área resolvem arquivos ambíguos. A forma `{"force": "interface"}` substitui uma classificação existente. O valor `"exclude"` remove o arquivo do score. Chaves com curingas combinam o glob de repositório antes da primeira barra e o glob de caminho depois dela. Exclusões automáticas têm precedência.
+O peso de revisão soma até 1.000 linhas por caminho distinto e até 10.000 por grupo. Os totais brutos continuam disponíveis. JSON em diretórios de mocks e fixtures sai quando a mudança excede 10.000 linhas no PR. Esses limites usam linhas alteradas porque o cache não contém o tamanho em bytes.
+Marcadores de módulo Android são identificados nos caminhos observados em todo o cache do repositório. Sem evidência de módulo, Kotlin e Java seguem as regras de caminho e extensão. Diretórios de ferramentas de IA têm uma área própria. O que continuar ambíguo conta como `other`.
 
 ## Score e custo (`report.py`)
 
