@@ -275,6 +275,15 @@ def companies(n):
     return f"{n} empresa" if n == 1 else f"{n} empresas"
 
 
+def rank_text(values, value):
+    if not values or value is None:
+        return "Sem comparação disponível"
+    below = sum(v < value for v in values)
+    if len(values) < 30:
+        return f"Acima de {below} de {companies(len(values))}"
+    return f"Acima de {pct(below / len(values))} das empresas"
+
+
 def evidence(r, base):
     return dict(period=r["period"], currency=r["params"]["currency"], maintenance_share=r["headline"]["interface_maintenance_share"],
                 maintenance_median=base["percentiles"]["interface_maintenance_share"].get("p50"),
@@ -320,8 +329,7 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
             values = sorted(p[metric] for p in group if p[metric] is not None)
             if scope != "Base completa" and len(values) < defaults.COHORT_MIN:
                 continue
-            rank = (f"Acima de {pct(sum(v < value for v in values) / len(values))} das empresas" if values and valid
-                    else "Sem comparação disponível")
+            rank = rank_text(values, value)
             out.append(f'<div class="cohort"><small>{scope} · {companies(len(values))}</small>{strip(values, value)}'
                        f'<strong>{rank}</strong></div>')
         out.append('</div>')
@@ -340,10 +348,14 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
         out.append('<section class="signals"><div class="eyebrow">Prioridades por custo no período</div><h2>Onde agir primeiro</h2><div class="cards">')
         for card in selection:
             f = lookup[card["finding_id"]]
-            stake_label = "de diferença no período" if f["kind"] == "annual_gap" else "no período"
-            out.append(f'<div class="card"><small>{e(f["money_formatted"])} {stake_label}</small><h3>{e(card["title"])}</h3>'
+            eyebrow = "Comparação anual" if f["kind"] == "annual_gap" else f["money_formatted"] + " no período"
+            if f["direction"] == "better":
+                eyebrow = "Ponto forte · " + eyebrow
+            comparison = f'<p>{e(f["comparison"])}</p>' if "comparison" in f else ""
+            action = f'<p class="action"><b>Ação</b> · {e(card["action"])}</p>' if card["action"] else ""
+            out.append(f'<div class="card"><small>{e(eyebrow)}</small><h3>{e(card["title"])}</h3>'
                        f'<small class="scope">{e(f["scope_label"])}</small><strong>{e(f["caption"])}</strong>{mini_chart(f)}'
-                       f'<p>{e(card["so_what"])}</p><p class="action"><b>Ação</b> · {e(card["action"])}</p></div>')
+                       f'{comparison}<p>{e(card["so_what"])}</p>{action}</div>')
         out.append('</div></section>')
     out.append(f"""<section class="method"><div class="eyebrow">Método de atribuição</div><h2>Do PR ao custo de interface</h2>
 <svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="var(--muted)" stroke-width=".4"/>

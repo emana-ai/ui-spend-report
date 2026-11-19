@@ -105,6 +105,12 @@ Nesta etapa, escolha as áreas de diretórios. Todo valor citado na redação de
 
 Evite “Interface presente em todo o período”, “R$ 988 mil de piso no período”, “59,2% local · interface 46,7%” e “Revise primeiro os componentes desse escopo”. Nenhuma dessas frases identifica uma decisão sobre o produto. Se os títulos confirmarem problemas de edição e filtros nos módulos do front do CRM, prefira “A edição de registros concentra ajustes” e “Priorize testes dos filtros e da edição antes de expandir essas telas”. Uma hipótese para investigar deve ser apresentada como hipótese.
 
+### Direção e linguagem dos cartões
+
+Leia `direction` antes de escrever. Use `better` como ponto forte, com `action: ""`, ou escolha outro achado. Para `mixed`, mantenha as duas medidas juntas: frequência de PRs de correção e parcela do gasto de manutenção usam denominadores diferentes. Consulte o custo atribuído antes de dizer que as correções custaram mais. Achados sem comparação direta têm direção `neutral`.
+
+O título declara o resultado com um número formatado da evidência ou o nome do escopo. Troque “Quanto cabe no roadmap do CRM” por “Manutenção ocupa 4,5 pessoas equivalentes”. Troque “Distância da mediana de manutenção”, “mediana aplicada ao orçamento” e “diferença no período” pela consequência: “Se a manutenção estivesse na mediana da base, o time gastaria R$ 86 mil a menos por ano”. Para um time abaixo da mediana, explique quanto ele gastaria **a mais** nesse cenário. Em vez de “Separe regressões recorrentes” diante de poucos PRs de correção, mostre qual parcela das entregas e do dinheiro eles representam.
+
 ## 5. Apresentar o resultado
 
 1. Abra o HTML (`open` no macOS, `xdg-open` no Linux, `start` no Windows).

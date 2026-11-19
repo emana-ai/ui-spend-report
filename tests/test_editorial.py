@@ -157,6 +157,65 @@ class Insights(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate(doc, invalid)
 
+    def test_strength_and_plain_language(self):
+        from validate_insights import validate
+
+        for cost, direction, wording in [(20, "better", "a mais por ano"), (60, "worse", "a menos por ano")]:
+            self.r["interface"]["maintenance_cost"] = cost
+            doc = report.evidence(self.r, self.base)
+            f = next(f for f in doc["findings"] if f["kind"] == "annual_gap")
+            self.assertEqual(f["direction"], direction)
+            self.assertIn(wording, f["caption"])
+            cards = validate(doc, insights.fallback(doc["findings"]))
+            copy = json.dumps([cards, doc], ensure_ascii=False).lower()
+            for phrase in ("mediana aplicada", "diferença no período", "distância da mediana"):
+                self.assertNotIn(phrase, copy)
+            if direction == "better":
+                card = next(c for c in cards if c["finding_id"] == f["id"])
+                self.assertEqual(card["action"], "")
+                card["action"] = "Separe regressões recorrentes."
+                with self.assertRaisesRegex(ValueError, "Ponto forte"):
+                    validate(doc, cards)
+
+    def test_conflicting_frequency_and_cost(self):
+        from validate_insights import validate
+
+        self.r["interface"]["fix_prs"] = 2
+        single = self.rows()["fix_share"]
+        self.assertEqual(single["direction"], "better")
+        self.r["interface"]["maintenance_cost"] = 60
+        doc = report.evidence(self.r, self.base)
+        rows = doc["findings"]
+        joint = next(f for f in rows if f["kind"] == "annual_gap")
+        self.assertEqual(joint["direction"], "mixed")
+        self.assertIn("10,0% dos PRs", joint["comparison"])
+        self.assertIn("75,0% do gasto", joint["comparison"])
+        self.assertFalse(any(f["kind"] == "fix_share" for f in rows))
+        validate(doc, insights.fallback(rows))
+        # An unmerged pair cannot be published as two opposite verdicts.
+        joint["direction"] = "worse"
+        rows.append(single)
+        rows.sort(key=lambda f: -f["money_at_stake"])
+        with self.assertRaisesRegex(ValueError, "opostas"):
+            validate(doc, insights.fallback(rows))
+
+    def test_title_evidence_and_scope(self):
+        from validate_insights import validate
+
+        doc = report.evidence(self.r, self.base)
+        cards = insights.fallback(doc["findings"])
+        cards[0]["title"] = "Quanto cabe no roadmap do CRM"
+        with self.assertRaisesRegex(ValueError, "Título"):
+            validate(doc, cards)
+        cards[0]["title"] = "Manutenção ocupa capacidade em sample"
+        validate(doc, cards)
+
+    def test_small_base_uses_counts(self):
+        self.assertEqual(report.rank_text([0.1] * 8 + [0.5, 0.8], 0.5), "Acima de 8 de 10 empresas")
+        self.assertEqual(report.rank_text([0.1] * 29, 0.5), "Acima de 29 de 29 empresas")
+        self.assertEqual(report.rank_text([0.1] * 15 + [0.5] * 15, 0.5), "Acima de 50% das empresas")
+        self.assertEqual(report.rank_text([], None), "Sem comparação disponível")
+
     def test_cohort_and_editorial_render(self):
         from test_ui_spend_report import MANIFEST, pr
 
@@ -172,7 +231,7 @@ class Insights(unittest.TestCase):
         b = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
         doc = report.evidence(r, b)
         cards = insights.fallback(doc["findings"])
-        cards[0]["title"] = "Decisão editorial"
+        cards[0]["title"] = "Decisão editorial em " + doc["findings"][0]["scope"].split("/")[0]
         page = report.render(r, cards, b)
         self.assertIn("Decisão editorial", page)
         self.assertEqual(page, report.render(r, json.loads(json.dumps(cards)), b))

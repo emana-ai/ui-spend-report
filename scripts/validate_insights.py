@@ -17,6 +17,7 @@ def validate(doc, selection):
         raise ValueError("Selecione de três a cinco evidências, ou todas se houver menos de três.")
     previous = float("inf")
     seen = set()
+    comparisons = {}
     for card in selection:
         if not isinstance(card, dict) or set(card) != {"finding_id", *LIMITS}:
             raise ValueError("Campos de insight inválidos")
@@ -24,6 +25,15 @@ def validate(doc, selection):
         if not isinstance(fid, str) or fid not in candidates:
             raise ValueError("finding_id desconhecido")
         f = candidates[fid]
+        direction = f["direction"]
+        family = f["metric_family"]
+        if direction != "neutral":
+            previous_direction = comparisons.get(family)
+            if previous_direction and (previous_direction != direction or direction == "mixed"):
+                raise ValueError("Comparações opostas da mesma família exigem um achado conjunto")
+            comparisons[family] = direction
+        if direction == "better" and card["action"] != "":
+            raise ValueError("Ponto forte deve ter ação vazia")
         pair = (f["scope"], f["kind"])
         if pair in seen or f["money_at_stake"] > previous:
             raise ValueError("Escopo e tipo repetidos ou ordem monetária incorreta")
@@ -32,11 +42,21 @@ def validate(doc, selection):
         allowed = set(NUMBER.findall(" ".join([*f["formatted"], f["money_formatted"], f["caption"]])))
         for field, limit in LIMITS.items():
             text = card[field]
+            if field == "action" and text == "" and direction in {"better", "mixed"}:
+                continue
             if not isinstance(text, str) or not 1 <= len(text.split()) <= limit:
                 raise ValueError(f"{field}: limite de {limit} palavras")
             if set(NUMBER.findall(text)) - allowed:
                 raise ValueError(f"{field}: número sem evidência vinculada")
-            if field == "title" and "/" in text:
+            if field == "title" and not NUMBER.search(text):
+                names = f["scope"].strip("/").split("/")
+                if not any(
+                    re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.I)
+                    for name in names
+                    if name not in {"src", "packages", "lib", "apps", "main"}
+                ):
+                    raise ValueError("Título precisa de um número da evidência ou do nome do escopo")
+            if field == "title" and "/" in text and "p.p./mês" not in text:
                 raise ValueError("Título deve descrever o achado, sem caminhos")
             median = doc["maintenance_median"]
             if median is not None:

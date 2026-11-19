@@ -64,6 +64,8 @@ def findings(r, base):
                 id=f"{kind}-{key}",
                 kind=kind,
                 scope=scope,
+                direction="neutral",
+                metric_family=kind,
                 scope_label=short_scope(scope),
                 money_at_stake=stake,
                 money_formatted=money(stake, cur),
@@ -111,9 +113,11 @@ def findings(r, base):
                     share=rate,
                 ),
                 formatted,
-                f"{formatted[2]}/ano {'acima' if delta > 0 else 'abaixo'} da mediana aplicada ao orçamento de interface",
+                f"Se a manutenção estivesse na mediana da base, o time gastaria {formatted[2]} a {'menos' if delta > 0 else 'mais'} por ano.",
                 [rate, median],
             )
+
+            rows[-1].update(direction="worse" if delta > 0 else "better", metric_family="maintenance")
 
     repos = [(x["repo"], x["interface_cost"]) for x in r["by_repo"] if x["interface_cost"]]
     places = (
@@ -239,6 +243,18 @@ def findings(r, base):
                 f"{formatted[0]} dos PRs de interface indicam correção · mediana {formatted[1]}",
                 [share, fix_median],
             )
+            fix = rows[-1]
+            fix.update(direction="better" if share < fix_median else "worse", metric_family="maintenance")
+            gap = next((row for row in rows if row["kind"] == "annual_gap"), None)
+            if gap and gap["direction"] != fix["direction"]:
+                gap["direction"] = "mixed"
+                gap["numbers"].update(fix["numbers"], fix_cost_share=ui["fix_cost"] / total)
+                gap["formatted"].extend(formatted + [pct(ui["fix_cost"] / total, 1)])
+                gap["comparison"] = (
+                    f"Correções: {formatted[0]} dos PRs (base: {formatted[1]}). "
+                    f"Manutenção: {pct(rate, 1)} do gasto com interface (base: {pct(median, 1)})."
+                )
+                rows.pop()  # Both denominators travel together through either editorial path.
     new = ui["new_cost"]
     if new / total >= D.WORK_MIX_MIN:
         value = pct(new / total, 1)
@@ -266,68 +282,83 @@ def findings(r, base):
     return sorted(rows, key=lambda f: (-f["money_at_stake"], f["id"]))
 
 
-# Copy contains no inferred product semantics. The agent can replace it with scoped analysis.
+# Each title states the measured result. Only comparable observations get a value judgment.
 COPY = {
     "peak": (
-        "Mês de maior investimento",
-        "As entregas desse mês elevam a média usada no orçamento de interface.",
-        "Isole as entregas pontuais antes de projetar o orçamento recorrente.",
+        "O pico chegou a {stake}",
+        "Esse mês pesa mais na média do que um mês típico.",
+        "Separe entregas pontuais antes de projetar o próximo orçamento.",
     ),
     "interface_trend": (
-        "Mudança na alocação de engenharia",
-        "A participação de interface no orçamento varia de forma persistente ao longo do período.",
-        "Confronte a mudança mensal com o calendário de entregas de produto.",
-    ),
-    "annual_gap": (
-        "Distância da mediana de manutenção",
-        "A comparação mantém o orçamento de interface do time e varia apenas a parcela dedicada à manutenção.",
-        "Use a diferença anual para dimensionar uma investigação de retrabalho.",
+        "Interface varia {value}",
+        "A fatia do orçamento dedicada às telas mudou ao longo dos meses.",
+        "Confira quais entregas explicam a mudança.",
     ),
     "capacity": (
-        "Capacidade comprometida com manutenção",
-        "Correções e ajustes consomem parte da capacidade que também atende à fila de novas telas.",
-        "Separe manutenção e construção na próxima previsão de capacidade.",
+        "Manutenção ocupa o tempo de {value} pessoas",
+        "Esse é o tempo integral equivalente gasto em ajustes das telas existentes.",
+        "Reserve essa capacidade antes de combinar prazos para novas telas.",
     ),
     "module": (
-        "O módulo que concentra manutenção",
-        "As correções deste módulo concentram a maior parcela do orçamento de manutenção da interface.",
-        "Agrupe os ajustes por componente antes de priorizar uma intervenção.",
+        "Um módulo concentra {value} da manutenção",
+        "De todos os módulos, este recebeu mais dinheiro para manter as telas existentes.",
+        "Identifique os componentes que voltaram à fila de correção.",
     ),
     "concentration": (
-        "O maior destino do orçamento",
-        "Este escopo reúne a maior parcela do investimento em interface.",
-        "Examine os fluxos mais alterados antes de ampliar o escopo de entrega.",
+        "Um escopo reúne {value} do investimento",
+        "É aqui que mudanças nas telas têm maior peso no orçamento.",
+        "Compare os fluxos mais alterados antes de ampliar a próxima entrega.",
     ),
     "platforms": (
-        "Construção em plataformas distintas",
-        "A mesma identificação de tela aparece em implementações distintas com custo de construção.",
-        "Compare requisitos e componentes antes de replicar a próxima alteração.",
+        "Outras plataformas custaram {stake}",
+        "A mesma tela aparece em mais de uma plataforma.",
+        "Confira quais componentes podem ser compartilhados na próxima alteração.",
     ),
     "trend": (
-        "Mudança de ritmo na manutenção",
-        "A série mensal indica mudança persistente na composição do orçamento de interface.",
-        "Confronte as entregas de cada mês com a fila de ajustes.",
-    ),
-    "fix_share": (
-        "Correções no fluxo de entrega",
-        "A frequência de PRs de correção difere da mediana observada nas empresas de referência.",
-        "Separe regressões recorrentes dos ajustes pontuais na triagem.",
+        "Manutenção varia {value}",
+        "A parcela do orçamento usada para manter as telas mudou ao longo dos meses.",
+        "Compare as entregas desses meses com a fila de ajustes.",
     ),
     "new": (
-        "Construção domina o investimento",
-        "A maior parte do orçamento de interface acompanha entregas classificadas como trabalho novo.",
-        "Identifique componentes repetidos entre as novas entregas antes da implementação.",
+        "Trabalho novo recebe {value} do orçamento",
+        "A maior parte do dinheiro de interface vai para novas entregas.",
+        "Procure componentes que essas entregas podem compartilhar.",
     ),
     "native": (
-        "Custo da implementação nativa",
-        "Arquivos específicos das plataformas móveis absorvem parte mensurável do investimento em interface.",
-        "Inclua as variantes nativas na estimativa de mudanças de tela.",
+        "Interface nativa recebe {value} do orçamento",
+        "Parte do custo das telas vem de implementações específicas para celular.",
+        "Inclua as versões móveis ao estimar uma mudança de tela.",
     ),
 }
 
 
 def fallback(rows):
-    return [
-        dict(finding_id=f["id"], **dict(zip(("title", "so_what", "action"), COPY[f["kind"]])))
-        for f in rows[:5]
-    ]
+    cards = []
+    for f in rows[:5]:
+        value = f["formatted"][0]
+        stake = f["money_formatted"]
+        if f["kind"] == "annual_gap":
+            cheaper = f["numbers"]["delta_annual"] < 0
+            delta = f["formatted"][2]
+            title = f"Manutenção custa {delta} a {'menos' if cheaper else 'mais'}"
+            so_what = "O cálculo compara o que o time gasta hoje com o que gastaria mantendo o mesmo orçamento de interface."
+            action = "" if cheaper else "Compare esse valor com o custo de prevenir falhas que se repetem."
+            if f["direction"] == "mixed":
+                cost_share = pct(f["numbers"]["fix_cost_share"], 1)
+                so_what = f"Os PRs de correção responderam por {cost_share} do gasto total com interface. A manutenção inclui também outros ajustes."
+                action = ""
+        elif f["kind"] == "fix_share":
+            title = f"Correções representam {value} dos PRs"
+            if f["direction"] == "better":
+                so_what = "Correções aparecem com menos frequência nos PRs de interface do que nas empresas da base."
+                action = ""
+            else:
+                so_what = (
+                    "Os títulos e rótulos indicam correções com maior frequência do que nas empresas da base."
+                )
+                action = "Procure falhas repetidas entre os PRs de correção."
+        else:
+            title, so_what, action = COPY[f["kind"]]
+            title = title.format(value=value, stake=stake)
+        cards.append(dict(finding_id=f["id"], title=title, so_what=so_what, action=action))
+    return cards
