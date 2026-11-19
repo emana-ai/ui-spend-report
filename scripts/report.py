@@ -248,24 +248,24 @@ def strip(values, client):
         if lane == len(lanes):
             lanes.append(x)
         lanes[lane] = x
-        dots.append(f'<circle cx="{x:.2f}" cy="{14+lane*9}" r="4" fill="#768f91"/>')
+        dots.append(f'<circle cx="{x:.2f}" cy="{14+lane*9}" r="4" fill="var(--muted)"/>')
     bottom = 26 + len(lanes)*9
     if client is not None:
         x = 8 + 384*client
-        dots.append(f'<path d="M{x:.2f} {bottom-7}l6 6 -6 6 -6 -6z" fill="#007771"/>')
+        dots.append(f'<path d="M{x:.2f} {bottom-7}l6 6 -6 6 -6 -6z" fill="var(--calm)"/>')
     return (f'<svg viewBox="0 0 400 {bottom+8}" role="img" aria-label="Distribuição das empresas e posição do time">'
-            f'<path d="M8 {bottom-1}h384" stroke="#baccca"/>' + "".join(dots) + '</svg>')
+            f'<path d="M8 {bottom-1}h384" stroke="var(--track)"/>' + "".join(dots) + '</svg>')
 
 
 def mini_chart(item):
     values = item["chart"]
     if item["rule"] in ("trend", "peak", "floor"):
         coords = " ".join(f"{3+i*94/(len(values)-1):.2f},{28-25*v:.2f}" for i,v in enumerate(values))
-        return f'<svg viewBox="0 0 100 32"><polyline points="{coords}" fill="none" stroke="#217973" stroke-width="2"/></svg>'
-    marker = (f'<path d="M{100*values[1]:.2f} 7v17" stroke="#162e32" stroke-width="1.5"/>'
+        return f'<svg viewBox="0 0 100 32"><polyline points="{coords}" fill="none" stroke="var(--calm)" stroke-width="2"/></svg>'
+    marker = (f'<path d="M{100*values[1]:.2f} 7v17" stroke="var(--text)" stroke-width="1.5"/>'
               if len(values)>1 else "")
-    return (f'<svg viewBox="0 0 100 32"><rect y="12" width="100" height="7" fill="#d9e4df"/>'
-            f'<rect y="12" width="{100*values[0]:.2f}" height="7" fill="#217973"/>{marker}</svg>')
+    return (f'<svg viewBox="0 0 100 32"><rect y="12" width="100" height="7" fill="var(--track)"/>'
+            f'<rect y="12" width="{100*values[0]:.2f}" height="7" fill="var(--calm)"/>{marker}</svg>')
 
 
 def render(r):
@@ -285,8 +285,8 @@ def render(r):
 <div class="hero"><div><div class="eyebrow">{org}　/　{period}　/　{c['repos']} {'repositório' if c['repos'] == 1 else 'repositórios'}</div>
 <h1>{headline}</h1></div>
 <svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Interface: {pct(share)} do esforço estimado">
-<circle cx="60" cy="60" r="47" fill="none" stroke="#294149" stroke-width="11"/>
-<circle cx="60" cy="60" r="47" fill="none" stroke="#94e4dd" stroke-width="11" pathLength="100"
+<circle cx="60" cy="60" r="47" fill="none" stroke="var(--track)" stroke-width="11"/>
+<circle cx="60" cy="60" r="47" fill="none" stroke="var(--calm)" stroke-width="11" pathLength="100"
 stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
 <text x="60" y="64" text-anchor="middle" fill="currentColor" font-size="13">Interface</text></svg></div>
 <div class="stats">"""]
@@ -337,8 +337,8 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
                        f'<strong>{label}</strong>{mini_chart(item)}<p>{e(item["action"])}</p></div>')
         out.append('</div></section>')
     out.append(f"""<section class="method"><div class="eyebrow">Método de atribuição</div><h2>Do PR ao custo de interface</h2>
-<svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="#70938d" stroke-width=".4"/>
-<path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="#217973"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} PRs</h3><p>Linhas e arquivos após exclusões.</p></div>
+<svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="var(--muted)" stroke-width=".4"/>
+<path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="var(--calm)"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} PRs</h3><p>Linhas e arquivos após exclusões.</p></div>
 <div><small>02 · Peso do PR</small><h3>Score logarítmico</h3><p>log₂(1 + linhas) + 0,5 × log₂(1 + arquivos)</p></div>
 <div><small>03 · Rateio mensal</small><h3>{M(r['params']['monthly_cost'])} / pessoa</h3><p>Custo proporcional ao score dos PRs da pessoa. Meses sem PR passam ao próximo mês ativo.</p></div>
 <div><small>04 · Divisão por área</small><h3>{M(ui['cost'])} em interface</h3><p>Custo por linhas efetivas de cada área. Arquivo sem linhas recebe peso um.</p></div></div>
