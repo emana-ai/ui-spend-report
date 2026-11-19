@@ -95,3 +95,18 @@ UNIT_TEST_MARKERS = [
 TOP_DIR_DEPTH = 4          # directory depth for "top interface paths"
 TOP_DIRS = 12
 AMBIGUOUS_DEPTH = 4        # directory depth used to group ambiguous files
+
+# Editorial thresholds. Stakes use costs from the observed period.
+CONCENTRATION_MIN = 0.30
+TREND_MIN_MONTHS = 4
+TREND_MIN_SLOPE = 0.015
+TREND_MIN_R2 = 0.55
+WORK_MIX_MIN = 0.55
+NATIVE_MIN = 0.10
+BENCH_MIN = 4
+CLOSING_TEXT = "A emana.ai muda as telas que mais custam sem passar pelo roadmap."
+CLOSING_URL = "https://emana.ai"
+PEAK_MIN_RATIO = 1.25
+HOTSPOT_MIN_GAP = 0.10
+HOTSPOT_MIN_MAINT_COST_SHARE = 0.05
+PERSISTENT_UI_MIN = 0.30

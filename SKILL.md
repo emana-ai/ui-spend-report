@@ -104,9 +104,7 @@ Você só escolhe áreas de diretórios. **Nunca escreva números**: todo númer
    - custo mensal de interface;
    - % da interface que foi manutenção;
    - custo anualizado da manutenção de interface.
-3. Uma frase sobre onde a interface pesa (repositório ou diretório do topo) e uma sobre o limite
-   principal (seção "O que os dados não respondem"), por exemplo o ambíguo restante ou o custo
-   carregado entre meses.
+3. Apresente a prioridade com maior custo observado e a posição do time na base. Cite o tamanho do grupo de comparação. Use as recomendações selecionadas pelo script.
 4. Se o usuário discordar de uma área, ajuste `overrides.json` (ou as regras em
    `scripts/defaults.py`) e rode `report.py` de novo.
 

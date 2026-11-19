@@ -1,0 +1,77 @@
+{
+  "points": [
+    {
+      "interface_share": 0.1732,
+      "interface_maintenance_share": 0.2897,
+      "team_size": "até 19",
+      "sector": "Gestão de projetos"
+    },
+    {
+      "interface_share": 0.1937,
+      "interface_maintenance_share": 0.4961,
+      "team_size": "até 19",
+      "sector": "Produtividade"
+    },
+    {
+      "interface_share": 0.2278,
+      "interface_maintenance_share": 0.3919,
+      "team_size": "50 ou mais",
+      "sector": "Automação"
+    },
+    {
+      "interface_share": 0.3019,
+      "interface_maintenance_share": 0.4072,
+      "team_size": "até 19",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.3275,
+      "interface_maintenance_share": 0.1766,
+      "team_size": "50 ou mais",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.3312,
+      "interface_maintenance_share": 0.4523,
+      "team_size": "até 19",
+      "sector": "Pesquisa"
+    },
+    {
+      "interface_share": 0.345,
+      "interface_maintenance_share": 0.2225,
+      "team_size": "50 ou mais",
+      "sector": "Colaboração"
+    },
+    {
+      "interface_share": 0.4026,
+      "interface_maintenance_share": 0.5008,
+      "team_size": "até 19",
+      "sector": "Atendimento"
+    },
+    {
+      "interface_share": 0.4124,
+      "interface_maintenance_share": 0.4668,
+      "team_size": "20–49",
+      "sector": "Gestão comercial"
+    },
+    {
+      "interface_share": 0.4175,
+      "interface_maintenance_share": 0.7111,
+      "team_size": "até 19",
+      "sector": "Documentos"
+    }
+  ],
+  "prs_scored": 26510,
+  "percentiles": {
+    "interface_share": {
+      "p25": 0.246325,
+      "p50": 0.32935,
+      "p75": 0.3882
+    },
+    "interface_maintenance_share": {
+      "p25": 0.31525,
+      "p50": 0.42975,
+      "p75": 0.488775
+    }
+  }
+}

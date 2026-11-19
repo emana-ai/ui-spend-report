@@ -11,16 +11,11 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import classify, defaults
+import classify, defaults, benchmark, insights
 
 _MAINT = re.compile(defaults.MAINTENANCE, re.I)
 _NEW = re.compile(defaults.NEW_WORK, re.I)
-AREA_PT = {"tooling": "Ferramentas de IA", "interface": "Interface", "backend": "Backend", "infra": "Infra e build", "tests": "Testes de integração",
-           "data": "Dados", "docs": "Documentação", "other": "Outros / não classificado"}
 SYMBOL = {"BRL": "R$", "USD": "US$", "EUR": "€", "GBP": "£"}
-EXCL_PT = {"lockfile": "lockfiles", "third_party": "código de terceiros", "override": "exceções locais", "build": "build/minificado",
-           "snapshot": "snapshots", "migration": "migrations", "translation": "traduções para outros idiomas",
-           "generated": "código gerado"}
 MESES = "jan fev mar abr mai jun jul ago set out nov dez".split()
 
 
@@ -126,6 +121,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     repo_cost, repo_ui, repo_ui_m, repo_prs = Counter(), Counter(), Counter(), Counter()
     mon_cost, mon_ui, mon_ui_m, mon_prs = Counter(), Counter(), Counter(), Counter()
     dir_cost, dir_m = defaultdict(Counter), defaultdict(Counter)
+    native_cost = 0.0
     n_maint = 0
     for pr in scored:
         maint = is_maintenance(pr)
@@ -145,6 +141,10 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                 maint_area[a] += c
                 dir_m[a][d] += c
             if a == "interface":
+                if path.endswith((".swift", ".xib", ".storyboard", ".xcstrings")) or "/src/main/res/" in "/" + path or (
+                        path.endswith((".kt", ".java")) and any(not root or path.startswith(root + "/")
+                        for root in index.modules.get(pr["repo"], ()))):
+                    native_cost += c
                 repo_ui[pr["repo"]] += c
                 mon_ui[pr["month"]] += c
                 if maint:
@@ -180,7 +180,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                             "unit_inferred_share": share(test_lines["unit_inferred"], unit)}},
         "cost": {"team_total": total, "team_monthly": total / n_m, "carried": carried,
                  "carried_share": share(carried, total)},
-        "interface": {"cost": ui, "new_cost": ui - ui_m, "maintenance_cost": ui_m,
+        "interface": {"cost": ui, "native_cost": native_cost, "new_cost": ui - ui_m, "maintenance_cost": ui_m,
                       "monthly_hours": ui / n_m * to_hours, "fte": ui / n_m / monthly_cost},
         "areas": [{"area": a, "cost": by_area[a], "share": share(by_area[a], total),
                    "monthly_hours": by_area[a] / n_m * to_hours, "maintenance_share": share(maint_area[a], by_area[a])}
@@ -234,13 +234,38 @@ def month(m):
     return f"{MESES[int(mm) - 1]}/{y}"
 
 
-def date_br(iso):
-    y, m, d = iso.split("-")
-    return f"{d}/{m}/{y}"
-
-
 # ---------------------------------------------------------------- HTML
 CSS = (Path(__file__).resolve().parents[1] / "assets" / "report.css").read_text(encoding="utf-8")  # one block, inlined
+
+
+def strip(values, client):
+    # Stack near neighbours vertically, retaining their actual x position.
+    lanes = []
+    dots = []
+    for value in values:
+        x = 8 + 384 * value
+        lane = next((i for i, last in enumerate(lanes) if x-last >= 9), len(lanes))
+        if lane == len(lanes):
+            lanes.append(x)
+        lanes[lane] = x
+        dots.append(f'<circle cx="{x:.2f}" cy="{14+lane*9}" r="4" fill="#768f91"/>')
+    bottom = 26 + len(lanes)*9
+    if client is not None:
+        x = 8 + 384*client
+        dots.append(f'<path d="M{x:.2f} {bottom-7}l6 6 -6 6 -6 -6z" fill="#007771"/>')
+    return (f'<svg viewBox="0 0 400 {bottom+8}" role="img" aria-label="Distribuição das empresas e posição do time">'
+            f'<path d="M8 {bottom-1}h384" stroke="#baccca"/>' + "".join(dots) + '</svg>')
+
+
+def mini_chart(item):
+    values = item["chart"]
+    if item["rule"] in ("trend", "peak", "floor"):
+        coords = " ".join(f"{3+i*94/(len(values)-1):.2f},{28-25*v:.2f}" for i,v in enumerate(values))
+        return f'<svg viewBox="0 0 100 32"><polyline points="{coords}" fill="none" stroke="#217973" stroke-width="2"/></svg>'
+    marker = (f'<path d="M{100*values[1]:.2f} 7v17" stroke="#162e32" stroke-width="1.5"/>'
+              if len(values)>1 else "")
+    return (f'<svg viewBox="0 0 100 32"><rect y="12" width="100" height="7" fill="#d9e4df"/>'
+            f'<rect y="12" width="{100*values[0]:.2f}" height="7" fill="#217973"/>{marker}</svg>')
 
 
 def render(r):
@@ -249,111 +274,77 @@ def render(r):
     M = lambda x: e(money(x, cur))
     months = r["period"]["months"]
     period = f"{month(months[0])} a {month(months[-1])}"
-    n_m = len(months)
     org = e(r["org"])
-    top_dirs = r["top_dirs_by_area"].get("interface", [])
-    top_dir = top_dirs[0] if top_dirs else None
-    repos = sorted((x for x in r["by_repo"] if x["interface_cost"]), key=lambda x: (-x["interface_cost"], x["repo"]))
     share = h["interface_share"]
-    ms = h["interface_maintenance_share"]
+    headline = (f"A interface absorveu <em>{pct(share)}</em> do esforço de engenharia."
+                if r["cost"]["team_total"] else "O período não teve PRs com custo atribuído.")
     logo = (Path(__file__).resolve().parents[1] / "assets/wordmark.html").read_text(encoding="utf-8")
     out = [f"""<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UI Spend Report · {org}</title><style>{CSS}</style><body>
 <header>{logo}<span>UI Spend Report</span></header><main>
-<div class="hero"><div><div class="eyebrow">{org}　/　{period}</div>
-<h1>A interface absorveu <em>{pct(share)}</em> do esforço de engenharia.</h1></div>
+<div class="hero"><div><div class="eyebrow">{org}　/　{period}　/　{c['repos']} {'repositório' if c['repos'] == 1 else 'repositórios'}</div>
+<h1>{headline}</h1></div>
 <svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Interface: {pct(share)} do esforço estimado">
 <circle cx="60" cy="60" r="47" fill="none" stroke="#294149" stroke-width="11"/>
 <circle cx="60" cy="60" r="47" fill="none" stroke="#94e4dd" stroke-width="11" pathLength="100"
 stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
 <text x="60" y="64" text-anchor="middle" fill="currentColor" font-size="13">Interface</text></svg></div>
 <div class="stats">"""]
-    for value, label in [(pct(share), "do esforço em interface"), (M(h['interface_monthly_cost']), "por mês em interface"),
-                         (pct(ms), "da interface em manutenção"), (M(h['interface_maintenance_annual_cost']), "por ano em manutenção, no ritmo atual")]:
+    for value, label in [(pct(share) if r["cost"]["team_total"] else "—", "do esforço em interface"), (M(h['interface_monthly_cost']), "por mês em interface"),
+                         (pct(h["interface_maintenance_share"]) if ui["cost"] else "—", "da interface em manutenção"), (M(h['interface_maintenance_annual_cost']), "por ano em manutenção, no ritmo atual")]:
         out.append(f"<div><b>{value}</b><small>{label}</small></div>")
-    out.append("</div><article><section><div class='eyebrow'>Evolução mensal</div><h2>Quanto da engenharia foi para interface?</h2><div class='trend'>")
-    for m in r["by_month"]:
-        value = m["interface_share"]
-        out.append(f"<div><strong>{pct(value)}</strong><svg viewBox='0 0 24 100' aria-hidden='true'><rect width='24' height='100' fill='#e1e8e6'/><rect y='{100-100*value:.4f}' width='24' height='{100*value:.4f}' fill='#217973'/></svg><small>{month(m['month'])}</small></div>")
-    out.append("</div></section><section><div class='eyebrow'>Distribuição por repositório</div><h2>Onde se concentra o investimento em interface?</h2>")
-    for repo in repos[:5]:
-        fraction = repo["interface_cost"] / ui["cost"]
-        out.append(f"<div class='rank'><span>{e(repo['repo'])}</span><strong>{pct(fraction)}</strong><svg viewBox='0 0 100 1' preserveAspectRatio='none' aria-hidden='true'><rect width='100' height='1' fill='#e1e8e6'/><rect width='{100*fraction:.4f}' height='1' fill='#217973'/></svg></div>")
-    if not repos:
-        out.append("<p>Nenhum custo atribuído à interface no período.</p>")
-    out.append(f"""</section><section class="maintenance"><div class="eyebrow">Composição do custo de interface</div>
-<h2>Quanto custa manter o que já existe?</h2><p>No período, {M(ui['maintenance_cost'])} foram para correções e ajustes.</p>
-<svg viewBox="0 0 100 1" preserveAspectRatio="none" aria-label="Manutenção: {pct(ms)}" role="img">
-<rect width="100" height="1" fill="#dee6e3"/><rect width="{100*ms:.4f}" height="1" fill="#217973"/></svg>
-<div class="legend"><span>Manutenção · {pct(ms)}</span><span>Trabalho novo · {M(ui['new_cost'])}</span></div></section>""")
-    out.append("</article><details><summary>Apêndice · dados completos e método</summary><section><h2>Custo por área</h2><dl>")
-    for row in r["areas"]:
-        out.append(f"<dt>{AREA_PT[row['area']]}</dt><dd>{pct(row['share'], 1)} · {M(row['cost'])}</dd>")
-    out.append("</dl></section>")
-    # 02 repos
-    out.append(f"""<section><div class="kicker">02 · Por repositório</div>
-<h2>Todos os repositórios</h2>
-<table><tr><th>Repositório</th><th class="n">PRs</th><th class="n">Custo no período</th><th class="n">% interface</th>
-<th class="n">Manutenção na interface</th></tr>""")
-    for x in r["by_repo"]:
-        out.append(f"<tr><td><code>{e(x['repo'])}</code></td><td class='n'>{num(x['prs'])}</td><td class='n'>{M(x['cost'])}</td>"
-                   f"<td class='n'>{pct(x['interface_share'])}</td><td class='n'>{pct(x['interface_maintenance_share'])}</td></tr>")
-    out.append("</table></section>")
-
-    # 05 directories
-    out.append(f"""<section><div class="kicker">05 · Onde a interface pesa</div>
-<h2>{('Diretório que mais consome: ' + '<code>' + e(top_dir['path']) + '</code>') if top_dir else 'Diretórios'}</h2>
-<table><tr><th>Diretório</th><th class="n">Custo no período</th><th class="n">% da interface</th><th class="n">Manutenção</th></tr>""")
-    for d in top_dirs:
-        out.append(f"<tr><td><code>{e(d['path'])}</code></td><td class='n'>{M(d['cost'])}</td>"
-                   f"<td class='n'>{pct(d['share_of_area'])}</td><td class='n'>{pct(d['maintenance_share'])}</td></tr>")
-    out.append("</table></section>")
-
-    # 06 limits
-    out.append(f"""<section><div class="kicker">06 · O que os dados não respondem</div>
-<h2>O que este número não vê</h2><ul>
-<li><b>Revisão de código.</b> O tempo de quem revisa não aparece; o custo fica com quem mergeou.</li>
-<li><b>Design e produto.</b> Só entra trabalho de engenharia que virou PR. Tempo de design, discovery e QA manual fica fora.</li>
-<li><b>Reuniões e suporte.</b> Entram no custo mensal de cada pessoa e são divididos pelos PRs como se fossem trabalho neles.</li>
-<li><b>Trabalho não mergeado.</b> PRs fechados sem merge, branches abandonadas e PRs ainda abertos não contam.
-Quem não mergeou nada no período não entra no time.</li>
-<li><b>{num(r['params']['hours_per_month'])} horas por mês.</b> As horas são uma conversão do custo; a jornada real pode ser outra.</li>
-<li><b>Limites do score.</b> O score cresce com o log das linhas e dos arquivos: um PR de 1.000 linhas pesa só ~2× um de 30.
-Linhas não medem dificuldade. Um PR que mistura áreas é dividido pelas linhas de cada uma.</li>
-<li><b>Manutenção pelo título.</b> A separação entre manutenção e interface nova depende de como o time nomeia PRs.</li>
-<li><b>Classificação por caminho.</b> {pct(ln['ambiguous_share'], 1)} das linhas ficaram sem área definida e contam como "outros".</li>
-</ul></section>""")
-
-    # 07 method
-    ex = ln["excluded"]
-    t = ln["tests"]
-    tests_txt = (f" Testes unitários contam com o código que testam (interface, backend…); testes de integração e "
-                 f"e2e são uma área à parte. Em {pct(t['unit_inferred_share'], 1)} das linhas de teste unitário a área "
-                 f"do código testado foi inferida pelo pacote.") if t["unit_tests_follow_area"] else ""
-    ex_txt = ", ".join(f"{EXCL_PT.get(k, k)} {num(v)}" for k, v in ex.items() if k != "binary" and v) or "nenhuma"
-    out.append(f"""<section><div class="kicker">07 · Método e parâmetros</div>
-<h2>Como o número foi calculado</h2><dl>
-<dt>Período</dt><dd>{date_br(r['period']['since'])} a {period.split(' a ')[1]} ({n_m} meses completos)</dd>
-<dt>Repositórios</dt><dd>{', '.join('<code>' + e(x) + '</code>' for x in r['params']['repos'])}</dd>
-<dt>Custo por pessoa</dt><dd>{M(r['params']['monthly_cost'])} por mês, com encargos ({e(cur)})</dd>
-<dt>Horas por mês</dt><dd>{num(r['params']['hours_per_month'])}</dd>
-<dt>Quem conta como time</dt><dd><code>{e(r['params']['authors'])}</code>; {num(c['developers'])} pessoas,
-{num(c['developer_months'])} pessoas-mês ativas (do primeiro ao último PR de cada uma no período)</dd>
-<dt>PRs</dt><dd>{num(c['prs_merged'])} mergeados; {num(c['prs_bot'])} de bots e {num(c['prs_not_team'])} de fora do time
-excluídos; {num(c['prs_duplicate'])} cherry-picks, backports e sincronizações de branch excluídos (repetem trabalho
-já contado); {num(c['prs_no_effective_change'])} sem mudança efetiva; {num(c['prs_scored'])} com score
-{'; até ' + num(r['params']['max_prs_per_repo']) + ' PRs mais recentes por repositório' if r['params']['max_prs_per_repo'] else ''}</dd>
-<dt>Score do PR</dt><dd>log2(1 + linhas efetivas) + 0,5 × log2(1 + arquivos efetivos)</dd>
-<dt>Custo</dt><dd>O custo mensal de cada pessoa é dividido entre os PRs que ela mergeou no mês, pelo score. Mês sem PR
-passa para o próximo mês com PR ({M(r['cost']['carried'])} carregados). Dentro do PR, o custo vai para cada área pelas
-linhas (arquivo sem linhas conta 1).</dd>
-<dt>Linhas excluídas</dt><dd>{pct(ln['excluded_share'], 1)} de {num(ln['total'])} linhas: {ex_txt}. Imagens e binários
-contam como arquivo, sem linhas.</dd>
-<dt>Áreas</dt><dd>Regras determinísticas por caminho e extensão; caminhos ambíguos classificados pelo agente
-(caminho + título do PR) num arquivo de exceções. Os números vêm sempre do script.{tests_txt}</dd>
-</dl></section></details>
-<footer>Gerado no seu ambiente. Nenhum dado saiu dele.</footer></main></body></html>
-""")
+    base = json.loads(benchmark.ASSET.read_text(encoding="utf-8"))
+    points = base["points"]
+    size = benchmark.bucket(c["developers"])
+    out.append(f"""</div><section class="reference"><div class="eyebrow">Referência de mercado</div>
+<h2>Onde o time se situa</h2><p>{len(points)} empresas de software open source · {num(base['prs_scored'])} PRs com custo atribuído.</p><div class="strips">""")
+    for metric, label in zip(benchmark.METRICS, ("Esforço em interface", "Manutenção da interface")):
+        valid = bool(ui["cost"] if metric == benchmark.METRICS[1] else r["cost"]["team_total"])
+        value = h[metric] if valid else None
+        display = pct(value, 1) if valid else "—"
+        out.append(f'<div class="strip"><h3>{label}</h3><strong class="client-value">{display}</strong><small> no time</small>')
+        for scope, group in (("Base completa", points), (f"Times · {size} pessoas", [p for p in points if p["team_size"] == size])):
+            values = sorted(p[metric] for p in group if p[metric] is not None)
+            rank = (f"Acima de {pct(sum(v < value for v in values) / len(values))} das empresas" if values and valid
+                    else "Sem comparação disponível")
+            out.append(f'<div class="cohort"><small>{scope} · {len(values)} empresas</small>{strip(values, value)}'
+                       f'<strong>{rank}</strong></div>')
+        out.append('</div>')
+    out.append('</div><small>● Empresa da base　 ◆ Seu time　 ·　 Escala de 0 a 100%</small></section>')
+    selected = insights.findings(r, base)
+    if selected:
+        out.append('<section class="signals"><div class="eyebrow">Prioridades por custo observado</div><h2>Onde agir primeiro</h2><div class="cards">')
+        for item in selected:
+            rule, value = item["rule"], item["value"]
+            title = e(item["title"]).replace("/", "/<wbr>")
+            label = pct(value, 1)
+            if rule == "peak":
+                title = "Pico de investimento · " + month(item["title"])
+                label = num(value, 1) + "× a média mensal"
+            elif rule == "trend":
+                label = num(value * 100, 1) + " p.p./mês"
+            elif rule == "quartile":
+                label += " · quartil superior " + pct(item["chart"][1], 1)
+            elif rule == "floor":
+                label += " ou mais em cada mês"
+            elif rule == "hotspot":
+                label += " local · interface " + pct(item["chart"][1], 1)
+            elif rule == "concentration":
+                label += " do custo de interface"
+                title = "Concentração em " + title
+            amount_label = "de piso no período" if rule == "floor" else "no último mês" if rule == "trend" else "no mês de pico" if rule == "peak" else "no período"
+            out.append(f'<div class="card"><small>{M(item["amount"])} {amount_label}</small><h3>{title}</h3>'
+                       f'<strong>{label}</strong>{mini_chart(item)}<p>{e(item["action"])}</p></div>')
+        out.append('</div></section>')
+    out.append(f"""<section class="method"><div class="eyebrow">Método de atribuição</div><h2>Do PR ao custo de interface</h2>
+<svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="#70938d" stroke-width=".4"/>
+<path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="#217973"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} PRs</h3><p>Linhas e arquivos após exclusões.</p></div>
+<div><small>02 · Peso do PR</small><h3>Score logarítmico</h3><p>log₂(1 + linhas) + 0,5 × log₂(1 + arquivos)</p></div>
+<div><small>03 · Rateio mensal</small><h3>{M(r['params']['monthly_cost'])} / pessoa</h3><p>Custo proporcional ao score dos PRs da pessoa. Meses sem PR passam ao próximo mês ativo.</p></div>
+<div><small>04 · Divisão por área</small><h3>{M(ui['cost'])} em interface</h3><p>Custo por linhas efetivas de cada área. Arquivo sem linhas recebe peso um.</p></div></div>
+<p>{'Testes unitários contam com o código que testam. ' if ln['tests']['unit_tests_follow_area'] else ''}Testes de integração têm área própria. Títulos e rótulos indicam manutenção.</p></section>
+<aside><a href="{e(defaults.CLOSING_URL)}">{e(defaults.CLOSING_TEXT)}</a></aside>
+<footer>Relatório gerado no seu ambiente. Nenhum dado saiu dele.</footer></main></body></html>""")
     return "\n".join(out)
 
 

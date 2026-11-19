@@ -10,7 +10,7 @@ produces a local, self-contained HTML report with four numbers:
 - how much of it is maintenance of screens that already exist;
 - what that maintenance costs per year.
 
-The Brazilian Portuguese report opens with the four estimates, then charts monthly investment, repository concentration and maintenance. The expandable appendix contains the complete breakdown and method. Embedded fonts and inline charts work offline.
+The Brazilian Portuguese report opens with four estimates, compares them with an anonymous open-source reference base, and ranks evidence-backed actions by observed cost. A visible diagram explains the allocation. Embedded fonts and inline charts work offline.
 
 ## Privacy
 
@@ -42,6 +42,14 @@ back-end, infrastructure, data, docs and integration tests. Unit tests count wit
 test. Lockfiles, generated code, translations, bots and duplicated pull requests (cherry-picks,
 backports) are excluded. Numbers come from deterministic scripts: the same inputs give the same
 report.
+
+Refresh the reference base from one aggregate JSON per software company:
+
+```sh
+python3 scripts/benchmark.py runs/*/ui-spend-report-*.json --out assets/benchmark.json
+```
+
+An optional `--sectors sectors.json` supplies local organization-to-sector labels. Only the labels are published. Keep collection periods and author filters comparable.
 
 Full method: [`references/method.md`](references/method.md). Every rule and default is in
 [`scripts/defaults.py`](scripts/defaults.py).

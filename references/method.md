@@ -81,3 +81,9 @@ Marcadores de módulo Android são identificados nos caminhos observados em todo
 
 Tudo é ordenado (repositório, número do PR, autor) e os floats são arredondados a 4 casas no JSON.
 O HTML usa a data da coleta, não a data de hoje. Mesmo cache + mesmos parâmetros → saída idêntica byte a byte.
+
+## Base de referência e prioridades
+
+A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam interpolação linear entre observações ordenadas. A posição do time é a fração de empresas com valor estritamente menor, tanto na base inteira quanto no grupo de porte (até 19, 20–49 ou 50+ pessoas com PR pontuado). Empates ficam fora do numerador. Sem custo de interface, a taxa de manutenção é indefinida.
+
+O motor em `scripts/insights.py` seleciona até cinco sinais e ordena seus valores monetários. Os valores podem se sobrepor. Os limiares estão em `scripts/defaults.py`. Tendência exige inclinação e qualidade de ajuste da regressão linear sobre meses consecutivos com custo. O piso recorrente multiplica a menor fatia mensal pelo custo total. O pico usa custo mensal, não a participação percentual. A concentração compara diretórios quando apenas um repositório tem custo de interface. Custos nativos exigem evidência de plataforma no caminho. O cache não identifica telas equivalentes entre plataformas.
