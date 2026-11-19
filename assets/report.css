@@ -53,3 +53,7 @@ aside a{text-decoration-color:var(--calm)}
 @media print{
   .landing-lgp::before,.landing-lgp::after,.landing-lgp>i{mix-blend-mode:normal;filter:none}
 }
+.card .scope{display:block;margin:7px 0 12px;overflow-wrap:anywhere}.card .action{padding-top:10px;border-top:1px solid var(--line)}.action b{font-family:inherit;letter-spacing:normal}
+.card strong{display:block}
+@media screen and (max-width:760px){.card svg{float:none;width:100%;height:28px;margin:6px 0}.card p{padding-top:0}.card p.action{padding-top:8px}}
+@media print{.signals{padding:12px 0}.card svg{height:24px;margin:6px 0}.card .scope{margin:4px 0}.cards{margin-block:12px}.card p{margin:5px 0}.card p.action{padding-top:5px}aside{margin-top:8px;padding:14px}aside a{font-size:20px}}

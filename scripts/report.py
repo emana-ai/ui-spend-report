@@ -12,11 +12,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import classify, defaults, benchmark, insights
+from display import num, pct, money, month
+from validate_insights import validate
 
 _MAINT = re.compile(defaults.MAINTENANCE, re.I)
 _NEW = re.compile(defaults.NEW_WORK, re.I)
-SYMBOL = {"BRL": "R$", "USD": "US$", "EUR": "€", "GBP": "£"}
-MESES = "jan fev mar abr mai jun jul ago set out nov dez".split()
+
 
 
 # ---------------------------------------------------------------- model
@@ -121,11 +122,19 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     repo_cost, repo_ui, repo_ui_m, repo_prs = Counter(), Counter(), Counter(), Counter()
     mon_cost, mon_ui, mon_ui_m, mon_prs = Counter(), Counter(), Counter(), Counter()
     dir_cost, dir_m = defaultdict(Counter), defaultdict(Counter)
+    surface_costs = defaultdict(Counter)
+    surface_scopes = defaultdict(lambda: defaultdict(set))
+    fix_cost = 0.0
+    interface_prs = fix_prs = 0
     native_cost = 0.0
     n_maint = 0
     for pr in scored:
         maint = is_maintenance(pr)
         n_maint += maint
+        fix = maint and re.search(defaults.FIX_MARKER, " ".join([pr["title"], *pr.get("labels", [])]), re.I)
+        if any(area == "interface" for area, _, _ in pr["files_eff"]):
+            interface_prs += 1
+            fix_prs += bool(fix)
         weights = [max(f[2], 1) for f in pr["files_eff"]]
         wsum = sum(weights)
         repo_cost[pr["repo"]] += pr["cost"]
@@ -145,6 +154,14 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                         path.endswith((".kt", ".java")) and any(not root or path.startswith(root + "/")
                         for root in index.modules.get(pr["repo"], ()))):
                     native_cost += c
+                if fix:
+                    fix_cost += c
+                if not maint:
+                    surface = insights.surface_key(pr["repo"], path)
+                    if surface:
+                        name, platform = surface
+                        surface_costs[name][platform] += c
+                        surface_scopes[name][platform].add(d)
                 repo_ui[pr["repo"]] += c
                 mon_ui[pr["month"]] += c
                 if maint:
@@ -157,6 +174,8 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     ui, ui_m, n_m = by_area["interface"], maint_area["interface"], len(months)
     unit = test_lines["unit"] + test_lines["unit_inferred"] + test_lines["unit_unresolved"]
     to_hours = hours / monthly_cost
+    dirs = dir_m["interface"]
+    leader = max(sorted(dirs), key=dirs.get) if dirs else None
     return rounded({
         "org": manifest["org"], "collected_on": manifest["collected_on"],
         "period": {"since": manifest["since"], "until_exclusive": manifest["until"], "months": months},
@@ -180,7 +199,12 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                             "unit_inferred_share": share(test_lines["unit_inferred"], unit)}},
         "cost": {"team_total": total, "team_monthly": total / n_m, "carried": carried,
                  "carried_share": share(carried, total)},
-        "interface": {"cost": ui, "native_cost": native_cost, "new_cost": ui - ui_m, "maintenance_cost": ui_m,
+        "maintenance_module": ({"path": leader, "cost": dir_cost["interface"][leader], "maintenance_cost": dirs[leader]}
+                               if leader else None),
+        "surface_scopes": {name: {platform: sorted(paths) for platform, paths in surface_scopes[name].items()}
+                           for name, costs in surface_costs.items() if len(costs) > 1},
+        "surfaces": {k: dict(v) for k, v in sorted(surface_costs.items()) if len(v) > 1},
+        "interface": {"fix_cost": fix_cost, "prs": interface_prs, "fix_prs": fix_prs, "cost": ui, "native_cost": native_cost, "new_cost": ui - ui_m, "maintenance_cost": ui_m,
                       "monthly_hours": ui / n_m * to_hours, "fte": ui / n_m / monthly_cost},
         "areas": [{"area": a, "cost": by_area[a], "share": share(by_area[a], total),
                    "monthly_hours": by_area[a] / n_m * to_hours, "maintenance_share": share(maint_area[a], by_area[a])}
@@ -210,30 +234,6 @@ def rounded(o):
 
 
 # ---------------------------------------------------------------- formatting (pt-BR)
-def num(x, d=0):
-    return f"{x:,.{d}f}".replace(",", "§").replace(".", ",").replace("§", ".")
-
-
-def pct(x, d=0):
-    return num(100 * x, d) + "%"
-
-
-def money(x, cur):
-    s = SYMBOL.get(cur, cur)
-    if abs(x) >= 1e6:
-        return f"{s} {num(x / 1e6, 1)} mi"
-    if abs(x) >= 1e4:
-        return f"{s} {num(x / 1e3)} mil"
-    if abs(x) >= 1e3:
-        return f"{s} {num(x / 1e3, 1)} mil"
-    return f"{s} {num(x)}"
-
-
-def month(m):
-    y, mm = m.split("-")
-    return f"{MESES[int(mm) - 1]}/{y}"
-
-
 # ---------------------------------------------------------------- HTML
 CSS = (Path(__file__).resolve().parents[1] / "assets" / "report.css").read_text(encoding="utf-8")  # one block, inlined
 
@@ -258,8 +258,11 @@ def strip(values, client):
 
 
 def mini_chart(item):
-    values = item["chart"]
-    if item["rule"] in ("trend", "peak", "floor"):
+    values = item["series"]
+    if item["kind"] == "platforms":
+        bars = "".join(f'<rect x="{i*100/len(values):.2f}" y="{30-28*v:.2f}" width="{80/len(values):.2f}" height="{28*v:.2f}" fill="var(--calm)"/>' for i,v in enumerate(values))
+        return f'<svg viewBox="0 0 100 32">{bars}</svg>'
+    if item["kind"] in {"trend", "interface_trend", "peak"}:
         coords = " ".join(f"{3+i*94/(len(values)-1):.2f},{28-25*v:.2f}" for i,v in enumerate(values))
         return f'<svg viewBox="0 0 100 32"><polyline points="{coords}" fill="none" stroke="var(--calm)" stroke-width="2"/></svg>'
     marker = (f'<path d="M{100*values[1]:.2f} 7v17" stroke="var(--text)" stroke-width="1.5"/>'
@@ -268,7 +271,17 @@ def mini_chart(item):
             f'<rect y="12" width="{100*values[0]:.2f}" height="7" fill="var(--calm)"/>{marker}</svg>')
 
 
-def render(r):
+def companies(n):
+    return f"{n} empresa" if n == 1 else f"{n} empresas"
+
+
+def evidence(r, base):
+    return dict(period=r["period"], currency=r["params"]["currency"], maintenance_share=r["headline"]["interface_maintenance_share"],
+                maintenance_median=base["percentiles"]["interface_maintenance_share"].get("p50"),
+                findings=insights.findings(r, base))
+
+
+def render(r, selection=None, base=None):
     e = html.escape
     cur, h, c, ui, ln = r["params"]["currency"], r["headline"], r["counts"], r["interface"], r["lines"]
     M = lambda x: e(money(x, cur))
@@ -293,11 +306,11 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
     for value, label in [(pct(share) if r["cost"]["team_total"] else "—", "do esforço em interface"), (M(h['interface_monthly_cost']), "por mês em interface"),
                          (pct(h["interface_maintenance_share"]) if ui["cost"] else "—", "da interface em manutenção"), (M(h['interface_maintenance_annual_cost']), "por ano em manutenção, no ritmo atual")]:
         out.append(f"<div><b>{value}</b><small>{label}</small></div>")
-    base = json.loads(benchmark.ASSET.read_text(encoding="utf-8"))
+    base = base or json.loads(benchmark.ASSET.read_text(encoding="utf-8"))
     points = base["points"]
     size = benchmark.bucket(c["developers"])
     out.append(f"""</div><section class="reference"><div class="eyebrow">Referência de mercado</div>
-<h2>Onde o time se situa</h2><p>{len(points)} empresas de software open source · {num(base['prs_scored'])} PRs com custo atribuído.</p><div class="strips">""")
+<h2>Onde o time se situa</h2><p>{companies(len(points))} de software open source · {num(base['prs_scored'])} {'PR' if base['prs_scored']==1 else 'PRs'} com custo atribuído.</p><div class="strips">""")
     for metric, label in zip(benchmark.METRICS, ("Esforço em interface", "Manutenção da interface")):
         valid = bool(ui["cost"] if metric == benchmark.METRICS[1] else r["cost"]["team_total"])
         value = h[metric] if valid else None
@@ -305,40 +318,36 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
         out.append(f'<div class="strip"><h3>{label}</h3><strong class="client-value">{display}</strong><small> no time</small>')
         for scope, group in (("Base completa", points), (f"Times · {size} pessoas", [p for p in points if p["team_size"] == size])):
             values = sorted(p[metric] for p in group if p[metric] is not None)
+            if scope != "Base completa" and len(values) < defaults.COHORT_MIN:
+                continue
             rank = (f"Acima de {pct(sum(v < value for v in values) / len(values))} das empresas" if values and valid
                     else "Sem comparação disponível")
-            out.append(f'<div class="cohort"><small>{scope} · {len(values)} empresas</small>{strip(values, value)}'
+            out.append(f'<div class="cohort"><small>{scope} · {companies(len(values))}</small>{strip(values, value)}'
                        f'<strong>{rank}</strong></div>')
         out.append('</div>')
     out.append('</div><small>● Empresa da base　 ◆ Seu time　 ·　 Escala de 0 a 100%</small></section>')
-    selected = insights.findings(r, base)
-    if selected:
-        out.append('<section class="signals"><div class="eyebrow">Prioridades por custo observado</div><h2>Onde agir primeiro</h2><div class="cards">')
-        for item in selected:
-            rule, value = item["rule"], item["value"]
-            title = e(item["title"]).replace("/", "/<wbr>")
-            label = pct(value, 1)
-            if rule == "peak":
-                title = "Pico de investimento · " + month(item["title"])
-                label = num(value, 1) + "× a média mensal"
-            elif rule == "trend":
-                label = num(value * 100, 1) + " p.p./mês"
-            elif rule == "quartile":
-                label += " · quartil superior " + pct(item["chart"][1], 1)
-            elif rule == "floor":
-                label += " ou mais em cada mês"
-            elif rule == "hotspot":
-                label += " local · interface " + pct(item["chart"][1], 1)
-            elif rule == "concentration":
-                label += " do custo de interface"
-                title = "Concentração em " + title
-            amount_label = "de piso no período" if rule == "floor" else "no último mês" if rule == "trend" else "no mês de pico" if rule == "peak" else "no período"
-            out.append(f'<div class="card"><small>{M(item["amount"])} {amount_label}</small><h3>{title}</h3>'
-                       f'<strong>{label}</strong>{mini_chart(item)}<p>{e(item["action"])}</p></div>')
+    doc = evidence(r, base)
+    if selection is not None:
+        try:
+            validate(doc, selection)
+        except ValueError as error:
+            print(f"insights.json: {error}. Usando textos determinísticos.", file=sys.stderr)
+            selection = None
+    if selection is None:
+        selection = validate(doc, insights.fallback(doc["findings"]))
+    lookup = {f["id"]: f for f in doc["findings"]}
+    if selection:
+        out.append('<section class="signals"><div class="eyebrow">Prioridades por custo no período</div><h2>Onde agir primeiro</h2><div class="cards">')
+        for card in selection:
+            f = lookup[card["finding_id"]]
+            stake_label = "de diferença no período" if f["kind"] == "annual_gap" else "no período"
+            out.append(f'<div class="card"><small>{e(f["money_formatted"])} {stake_label}</small><h3>{e(card["title"])}</h3>'
+                       f'<small class="scope">{e(f["scope_label"])}</small><strong>{e(f["caption"])}</strong>{mini_chart(f)}'
+                       f'<p>{e(card["so_what"])}</p><p class="action"><b>Ação</b> · {e(card["action"])}</p></div>')
         out.append('</div></section>')
     out.append(f"""<section class="method"><div class="eyebrow">Método de atribuição</div><h2>Do PR ao custo de interface</h2>
 <svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="var(--muted)" stroke-width=".4"/>
-<path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="var(--calm)"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} PRs</h3><p>Linhas e arquivos após exclusões.</p></div>
+<path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="var(--calm)"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} {'PR' if c['prs_scored']==1 else 'PRs'}</h3><p>Linhas e arquivos após exclusões.</p></div>
 <div><small>02 · Peso do PR</small><h3>Score logarítmico</h3><p>log₂(1 + linhas) + 0,5 × log₂(1 + arquivos)</p></div>
 <div><small>03 · Rateio mensal</small><h3>{M(r['params']['monthly_cost'])} / pessoa</h3><p>Custo proporcional ao score dos PRs da pessoa. Meses sem PR passam ao próximo mês ativo.</p></div>
 <div><small>04 · Divisão por área</small><h3>{M(ui['cost'])} em interface</h3><p>Custo por linhas efetivas de cada área. Arquivo sem linhas recebe peso um.</p></div></div>
@@ -355,6 +364,7 @@ def main():
     ap.add_argument("--currency", default=defaults.CURRENCY)
     ap.add_argument("--hours", type=float, default=float(defaults.HOURS_PER_MONTH))
     ap.add_argument("--authors", default=defaults.AUTHORS)
+    ap.add_argument("--findings", action="store_true", help="Grava findings.json com todas as evidências do período")
     a = ap.parse_args()
     manifest, prs = classify.load_cache(a.out)
     r = analyse(manifest, prs, classify.load_overrides(a.out), a.monthly_cost, a.hours, a.authors, a.currency)
@@ -362,7 +372,17 @@ def main():
     (out / f"ui-spend-report-{r['org']}.json").write_text(json.dumps(r, ensure_ascii=False, indent=1, sort_keys=True),
                                                      encoding="utf-8")
     page = out / f"ui-spend-report-{r['org']}-{r['collected_on']}.html"
-    page.write_text(render(r), encoding="utf-8")
+    base = json.loads(benchmark.ASSET.read_text(encoding="utf-8"))
+    if a.findings:
+        (out / "findings.json").write_text(json.dumps(evidence(r,base), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    copy_path = out / "insights.json"
+    selection = None
+    if copy_path.exists():
+        try:
+            selection = json.loads(copy_path.read_text(encoding="utf-8"))
+        except (ValueError,OSError) as error:
+            print(f"insights.json: {error}. Usando textos determinísticos.", file=sys.stderr)
+    page.write_text(render(r,selection,base), encoding="utf-8")
     h = r["headline"]
     print(f"{page}\n  interface: {pct(h['interface_share'])} do tempo · {money(h['interface_monthly_cost'], a.currency)}/mês · "
           f"manutenção {pct(h['interface_maintenance_share'])} · {money(h['interface_maintenance_annual_cost'], a.currency)}/ano"

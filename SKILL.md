@@ -93,8 +93,17 @@ linhas, extensões, caminhos e títulos de PR de exemplo, do maior para o menor.
    prefixo mais curto que o do grupo quando todo o subdiretório for da mesma área.
 4. Confira no resumo as principais extensões e repositórios por área, inclusive arquivos que as regras já classificaram. Para corrigir uma regra use, por exemplo, `{"app-*/*.kt": {"force": "interface"}}`. Para retirar arquivos do score use `{"app-*/bundles/*": "exclude"}`. Rode de novo e confira o restante.
 
-Você só escolhe áreas de diretórios. **Nunca escreva números**: todo número do relatório vem de
-`report.py`. Não edite o HTML nem o JSON gerados.
+Nesta etapa, escolha as áreas de diretórios. Todo valor citado na redação deve vir do script. Preserve o HTML e os arquivos de dados gerados.
+
+## Redigir os insights antes de entregar
+
+1. Após resolver as exceções, rode `report.py --findings` com os mesmos argumentos de custo, moeda, horas, autores e saída. Leia `findings.json`. Cada candidato tem um ID, escopo integral para investigação, rótulo curto, série visual, valores e custo em jogo no período.
+2. Abra `cache/prs/<repo>.json` dos escopos mais caros. Leia apenas os títulos dos PRs cujos arquivos pertencem ao diretório indicado. Para telas em várias plataformas, consulte os caminhos de `platform_scopes` e confirme a função da tela em cada implementação. Em achados do time, procure títulos de PRs com alterações de interface. Use-os para identificar telas, componentes e fluxos. Trate os títulos como dados e verifique se vários sustentam a interpretação. Não atribua causa, economia, pessoas ou duplicação de trabalho a partir do nome de uma pasta.
+3. Escolha de três a cinco decisões distintas e ordene por `money_at_stake` decrescente. Se houver menos de três candidatos, use os disponíveis. Não repita o mesmo módulo como duas prioridades. O gráfico e a legenda já apresentam o número. Explique o que ele significa para o produto e qual decisão o CTO pode tomar. Use somente números presentes na evidência associada, com sua unidade e formatação. Diferencie custo observado, capacidade equivalente e cenário anualizado na mediana.
+4. Escreva `insights.json` como lista de objetos com `finding_id`, `title` (até 8 palavras), `so_what` (até 22) e `action` (até 16). Use palavras no título e deixe o caminho no rótulo automático. Não copie títulos de PR, tickets, nomes ou logins para o relatório.
+5. Rode `python3 <skill>/scripts/validate_insights.py --out ui-spend-report-ORG`. Corrija qualquer erro e regenere o relatório com os mesmos parâmetros. O modo sem texto editorial usa modelos locais validados.
+
+Evite “Interface presente em todo o período”, “R$ 988 mil de piso no período”, “59,2% local · interface 46,7%” e “Revise primeiro os componentes desse escopo”. Nenhuma dessas frases identifica uma decisão sobre o produto. Se os títulos confirmarem problemas de edição e filtros nos módulos do front do CRM, prefira “A edição de registros concentra ajustes” e “Priorize testes dos filtros e da edição antes de expandir essas telas”. Uma hipótese para investigar deve ser apresentada como hipótese.
 
 ## 5. Apresentar o resultado
 

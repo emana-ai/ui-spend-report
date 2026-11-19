@@ -43,6 +43,8 @@ test. Lockfiles, generated code, translations, bots and duplicated pull requests
 backports) are excluded. Numbers come from deterministic scripts: the same inputs give the same
 report.
 
+With the same run parameters, add `--findings` to export the evidence before drafting `insights.json`. Validate the copy with `python3 scripts/validate_insights.py --out DIR` and rerun the report. The HTML uses deterministic templates when editorial copy is absent or invalid.
+
 Refresh the reference base from one aggregate JSON per software company:
 
 ```sh

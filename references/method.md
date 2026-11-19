@@ -86,4 +86,12 @@ O HTML usa a data da coleta, não a data de hoje. Mesmo cache + mesmos parâmetr
 
 A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam interpolação linear entre observações ordenadas. A posição do time é a fração de empresas com valor estritamente menor, tanto na base inteira quanto no grupo de porte (até 19, 20–49 ou 50+ pessoas com PR pontuado). Empates ficam fora do numerador. Sem custo de interface, a taxa de manutenção é indefinida.
 
-O motor em `scripts/insights.py` seleciona até cinco sinais e ordena seus valores monetários. Os valores podem se sobrepor. Os limiares estão em `scripts/defaults.py`. Tendência exige inclinação e qualidade de ajuste da regressão linear sobre meses consecutivos com custo. O piso recorrente multiplica a menor fatia mensal pelo custo total. O pico usa custo mensal, não a participação percentual. A concentração compara diretórios quando apenas um repositório tem custo de interface. Custos nativos exigem evidência de plataforma no caminho. O cache não identifica telas equivalentes entre plataformas.
+Um grupo por porte aparece apenas com oito ou mais empresas com denominador válido. Sem esse tamanho de amostra, o gráfico mostra apenas a base completa.
+
+`report.py --findings` grava todas as evidências antes da seleção editorial. A ordem usa dinheiro no período observado. A diferença anual de manutenção compara o gasto real com a mediana da base aplicada ao mesmo orçamento de interface. Para ordenar, essa diferença volta à duração observada. Os valores dos cartões podem se sobrepor.
+
+Capacidade equivalente divide custo mensal pelo custo mensal por pessoa. A concentração de manutenção usa a pasta com maior custo absoluto de manutenção, inclusive fora das maiores pastas por custo total. Uma única pasta recebe um único achado de concentração. Tendência usa regressão sobre a participação mensal de manutenção no custo de interface, com denominador positivo em todos os meses, inclinação mínima e qualidade de ajuste.
+
+A frequência de correção conta cada PR pontuado com interface uma vez. Entre PRs de manutenção, título ou rótulo com marcador explícito de correção determina o numerador. A referência é a mediana das frequências por empresa. Relatórios antigos sem contagem de PRs de interface não contribuem para essa mediana.
+
+Em caminhos explícitos de plataforma, um mesmo identificador de tela em `screens/` ou `pages/` dentro da mesma família de produto constitui evidência de implementações paralelas. O maior custo observado de construção é a plataforma de referência. Cada outra plataforma contribui seu próprio custo observado. A equivalência funcional precisa ser conferida pelos títulos dos PRs. Esses custos não estimam economia.
