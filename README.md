@@ -47,3 +47,7 @@ Full method: [`references/method.md`](references/method.md). Every rule and defa
 [`scripts/defaults.py`](scripts/defaults.py).
 
 Made by [emana.ai](https://emana.ai).
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
