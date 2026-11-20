@@ -6,13 +6,14 @@
 Reads DIR/cache (from collect.py) and DIR/overrides.json. Same inputs → byte-identical outputs.
 Aggregates only: author logins are used in memory for the cost split and never written.
 """
-import argparse, html, json, math, re, sys
+import argparse, bisect, html, json, math, re, sys
 from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import classify, defaults, benchmark, insights
-from display import num, pct, money, month
+from display import num, pct, money, month, companies, rank_text
 from validate_insights import validate
 
 _MAINT = re.compile(defaults.MAINTENANCE, re.I)
@@ -21,6 +22,23 @@ _BUG_LABEL = re.compile(defaults.BUG_LABEL, re.I)
 _FEATURE_LABEL = re.compile(defaults.FEATURE_LABEL, re.I)
 _ISSUE = re.compile(defaults.ISSUE_PREFIX, re.I)
 _NATIVE = (".swift", ".m", ".mm", ".kt", ".java", ".dart", ".qml", ".xib", ".storyboard", ".xcstrings")
+_PLATFORMS = [(name, re.compile(rx, re.I)) for name, rx in defaults.PLATFORMS]
+
+
+def platform(repo, path):
+    full = f"{repo}/{path}"
+    return next((name for name, rx in _PLATFORMS if rx.search(full)), "web")
+
+
+def module(repo, path):
+    """Directory one level below the last structural folder (src, modules, features…): a readable hotspot."""
+    dirs = path.split("/")[:-1]
+    last = max((i for i, d in enumerate(dirs) if d.lower() in defaults.MODULE_CONTAINERS), default=-1)
+    return "/".join([repo] + dirs[:last + 2])
+
+
+def when(pr):
+    return datetime.strptime(pr["merged_at"], "%Y-%m-%dT%H:%M:%SZ")
 
 
 
@@ -141,14 +159,18 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     fix_cost = 0.0
     interface_prs = fix_prs = 0
     native_cost = 0.0
-    n_maint = 0
+    n_maint = n_typed = 0
+    recs = []  # one per interface file in a PR: the evidence behind every scope, block and card
+    mon_ui_prs = Counter()
     for pr in scored:
         maint = is_maintenance(pr)
         n_maint += maint
+        n_typed += any(_BUG_LABEL.search(l) or _FEATURE_LABEL.search(l) for l in pr.get("labels", []))
         fix = maint and re.search(defaults.FIX_MARKER, " ".join([pr["title"], *pr.get("labels", [])]), re.I)
         if any(area == "interface" for area, _, _ in pr["files_eff"]):
             interface_prs += 1
             fix_prs += bool(fix)
+            mon_ui_prs[pr["month"]] += 1
         weights = [max(f[2], 1) for f in pr["files_eff"]]
         wsum = sum(weights)
         repo_cost[pr["repo"]] += pr["cost"]
@@ -164,16 +186,19 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                 maint_area[a] += c
                 dir_m[a][d] += c
             if a == "interface":
-                if path.endswith(_NATIVE) or "/src/main/res/" in "/" + path:  # the area (rule or override) is decided
+                native = path.endswith(_NATIVE) or "/src/main/res/" in "/" + path  # the area (rule or override) is decided
+                if native:
                     native_cost += c
                 if fix:
                     fix_cost += c
-                if not maint:
-                    surface = insights.surface_key(pr["repo"], path)
-                    if surface:
-                        name, platform = surface
-                        surface_costs[name][platform] += c
-                        surface_scopes[name][platform].add(d)
+                surface = None if maint else insights.surface_key(pr["repo"], path)
+                if surface:
+                    surface_costs[surface[0]][surface[1]] += c
+                    surface_scopes[surface[0]][surface[1]].add(d)
+                recs.append(dict(pr=(pr["repo"], pr["number"]), file=(pr["repo"], path), month=pr["month"], at=when(pr),
+                                 cost=c, maint=maint, fix=bool(fix), native=native, dir=d,
+                                 module=module(pr["repo"], path), platform=platform(pr["repo"], path),
+                                 surface=surface and surface[0]))
                 repo_ui[pr["repo"]] += c
                 mon_ui[pr["month"]] += c
                 if maint:
@@ -186,9 +211,18 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     ui, ui_m, n_m = by_area["interface"], maint_area["interface"], len(months)
     unit = test_lines["unit"] + test_lines["unit_inferred"] + test_lines["unit_unresolved"]
     to_hours = hours / monthly_cost
-    dirs = dir_m["interface"]
-    leader = max(sorted(dirs), key=dirs.get) if dirs else None
     measured = interface_prs >= defaults.MAINT_MIN_UI_PRS  # smaller samples: no maintenance rate
+    scopes = {"interface": recs, "maintenance": [x for x in recs if x["maint"]], "fix": [x for x in recs if x["fix"]],
+              "native": [x for x in recs if x["native"]]}
+    for x in recs:
+        scopes.setdefault("month:" + x["month"], []).append(x)
+        scopes.setdefault("repo:" + x["file"][0], []).append(x)
+        if x["surface"] in surface_costs and len(surface_costs[x["surface"]]) > 1:
+            scopes.setdefault("surface:" + x["surface"], []).append(x)
+    top_ui = sorted(dir_cost["interface"], key=lambda d: (-dir_cost["interface"][d], d))[:defaults.TOP_DIRS]
+    for d in top_ui:
+        scopes["dir:" + d + "/"] = [x for x in recs if x["dir"] == d or x["dir"].startswith(d + "/")]
+    until = datetime.strptime(manifest["until"], "%Y-%m-%d")
     return rounded({
         "org": manifest["org"], "collected_on": manifest["collected_on"],
         "period": {"since": manifest["since"], "until_exclusive": manifest["until"], "months": months},
@@ -203,7 +237,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         "counts": {"prs_merged": n_merged, "prs_bot": n_bot, "prs_automation": n_auto, "prs_duplicate": n_dup,
                    "prs_release_copy": n_release, "prs_not_team": len(human) - len(kept),
                    "prs_no_effective_change": n_empty, "prs_scored": len(scored), "prs_maintenance": n_maint,
-                   "developers": len({p["author"] for p in scored}), "developer_months": dev_months,
+                   "prs_typed_label": n_typed, "developers": len({p["author"] for p in scored}), "developer_months": dev_months,
                    "repos": len(manifest["repos"])},
         "lines": {"total": lines_total, "effective": eff_lines, "excluded": dict(sorted(excluded.items())),
                   "excluded_share": share(sum(excluded.values()) - excluded["binary"], lines_total),
@@ -213,8 +247,6 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                             "unit_inferred_share": share(test_lines["unit_inferred"], unit)}},
         "cost": {"team_total": total, "team_monthly": total / n_m, "carried": carried,
                  "carried_share": share(carried, total)},
-        "maintenance_module": ({"path": leader, "cost": dir_cost["interface"][leader], "maintenance_cost": dirs[leader]}
-                               if leader else None),
         "surface_scopes": {name: {platform: sorted(paths) for platform, paths in surface_scopes[name].items()}
                            for name, costs in surface_costs.items() if len(costs) > 1},
         "surfaces": {k: dict(v) for k, v in sorted(surface_costs.items()) if len(v) > 1},
@@ -228,13 +260,110 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                      "interface_maintenance_share": share(repo_ui_m[r], repo_ui[r])}
                     for r in sorted(repo_cost, key=lambda r: (-repo_cost[r], r))],
         "by_month": [{"month": m, "prs": mon_prs[m], "cost": mon_cost[m], "interface_cost": mon_ui[m],
+                      "interface_prs": mon_ui_prs[m], "interface_maintenance_cost": mon_ui_m[m],
                       "interface_share": share(mon_ui[m], mon_cost[m]),
                       "interface_maintenance_share": share(mon_ui_m[m], mon_ui[m])} for m in months],
         "top_dirs_by_area": {a: [{"path": d + "/", "cost": dc[d], "share_of_area": share(dc[d], by_area[a]),
                                   "maintenance_share": share(dir_m[a][d], dc[d])}
                                  for d in sorted(dc, key=lambda d: (-dc[d], d))[:defaults.TOP_DIRS]]
                              for a, dc in sorted(dir_cost.items()) if a != "tooling"},
+        "scopes": {k: scope_stats(v, months) for k, v in sorted(scopes.items())},
+        "hotspots": hotspots(recs) if measured and ui_m else None,
+        "rework": rework(recs, until) if measured else None,
+        "trend": trend(months, mon_ui, mon_ui_m, mon_ui_prs) if measured else None,
+        "platforms": platforms(recs, ui, measured),
     })
+
+
+def scope_stats(recs, months):
+    """Cost, PRs, files, monthly cost and the three modules that carry most of it."""
+    by_month, mods = Counter(), Counter()
+    for x in recs:
+        by_month[x["month"]] += x["cost"]
+        mods[x["module"]] += x["cost"]
+    return {"cost": sum(x["cost"] for x in recs), "prs": len({x["pr"] for x in recs}),
+            "files": len({x["file"] for x in recs}), "by_month": [by_month[m] for m in months],
+            "top": [[m, mods[m]] for m in sorted(mods, key=lambda m: (-mods[m], m))[:3]]}
+
+
+def hotspots(recs):
+    """Maintenance cost by interface file: concentration curve, files that carry HOTSPOT_COST_SHARE, top modules."""
+    files, mods, mod_prs, mod_files = Counter(), Counter(), defaultdict(set), defaultdict(set)
+    for x in recs:
+        files[x["file"]] += x["cost"] if x["maint"] else 0
+        if x["maint"]:
+            mods[x["module"]] += x["cost"]
+            mod_prs[x["module"]].add(x["pr"])
+            mod_files[x["module"]].add(x["file"])
+    costs = sorted(files.values(), reverse=True)
+    total, n = sum(costs), len(costs)
+    cum = [0.0]
+    for c in costs:
+        cum.append(cum[-1] + c)
+    top = next(i for i, c in enumerate(cum) if c >= defaults.HOTSPOT_COST_SHARE * total)
+    return {"files": n, "top_files": top, "top_file_share": top / n, "top_maintenance_share": cum[top] / total,
+            "maintenance_files": sum(c > 0 for c in costs),
+            "curve": [cum[round(n * i / 100)] / total for i in range(101)],  # share of cost in the top 0, 1 … 100% of files
+            "modules": [{"path": m, "maintenance_cost": mods[m], "share": mods[m] / total, "prs": len(mod_prs[m]),
+                         "files": len(mod_files[m])}
+                        for m in sorted(mods, key=lambda m: (-mods[m], m))[:defaults.HOTSPOT_TOP]]}
+
+
+def rework(recs, until):
+    """Cost of new interface work on files that receive a maintenance PR within REWORK_DAYS after it merged,
+    file by file (one shared file does not mark a whole PR). Only new work merged at least REWORK_DAYS before
+    the period ends: later PRs have no full window."""
+    window = timedelta(days=defaults.REWORK_DAYS)
+    fixes = defaultdict(list)
+    for x in recs:
+        if x["maint"]:
+            fixes[x["file"]].append((x["at"], x["pr"], x["cost"]))
+    for v in fixes.values():
+        v.sort()
+    times = {f: [at for at, _, _ in v] for f, v in fixes.items()}
+    new_cost = hit_cost = 0.0
+    new_prs, hit_prs, follow = set(), set(), {}
+    for x in recs:
+        if x["maint"] or x["at"] + window > until:
+            continue
+        new_cost += x["cost"]
+        new_prs.add(x["pr"])
+        v = fixes.get(x["file"], [])
+        later = [(pr, c) for at, pr, c in v[bisect.bisect_right(times.get(x["file"], []), x["at"]):]  # strictly after
+                 if at <= x["at"] + window]
+        if later:
+            hit_cost += x["cost"]
+            hit_prs.add(x["pr"])
+            follow.update(((pr, x["file"]), c) for pr, c in later)  # each maintenance file-cost counted once
+    published = len(new_prs) >= defaults.MAINT_MIN_UI_PRS
+    return {"days": defaults.REWORK_DAYS, "new_prs": len(new_prs), "reworked_prs": len(hit_prs), "new_cost": new_cost,
+            "reworked_cost": hit_cost, "share": hit_cost / new_cost if published and new_cost else None,
+            "followup_cost": sum(follow.values()), "followup_prs": len({pr for pr, _ in follow})}
+
+
+def trend(months, ui, ui_m, ui_prs):
+    """Maintenance share of interface cost, first half of the window vs second half (odd middle month left out)."""
+    half = len(months) // 2
+    parts = [months[:half], months[len(months) - half:]]
+    if not half or any(sum(ui_prs[m] for m in p) < defaults.MAINT_MIN_UI_PRS or not sum(ui[m] for m in p) for p in parts):
+        return None
+    first, second = (sum(ui_m[m] for m in p) / sum(ui[m] for m in p) for p in parts)
+    return {"first": first, "second": second, "first_months": parts[0], "second_months": parts[1],
+            "delta": second - first, "stable": abs(second - first) <= defaults.TREND_STABLE_PP}
+
+
+def platforms(recs, ui, measured):
+    """Interface cost and maintenance share per platform; below PLATFORM_MIN_SHARE of interface cost: hidden."""
+    cost, maint, prs = Counter(), Counter(), defaultdict(set)
+    for x in recs:
+        cost[x["platform"]] += x["cost"]
+        maint[x["platform"]] += x["cost"] if x["maint"] else 0
+        prs[x["platform"]].add(x["pr"])
+    shown = [p for p in sorted(cost, key=lambda p: (-cost[p], p)) if ui and cost[p] / ui >= defaults.PLATFORM_MIN_SHARE]
+    return {"shown": [{"platform": p, "cost": cost[p], "share": cost[p] / ui, "prs": len(prs[p]),
+                       "maintenance_share": maint[p] / cost[p] if measured and len(prs[p]) >= defaults.MAINT_MIN_UI_PRS else None}
+                      for p in shown],
+            "hidden_share": sum(cost[p] for p in cost if p not in shown) / ui if ui else 0.0}
 
 
 def rounded(o):
@@ -271,31 +400,119 @@ def strip(values, client):
             f'<path d="M8 {bottom-1}h384" stroke="var(--track)"/>' + "".join(dots) + '</svg>')
 
 
-def mini_chart(item):
-    values = item["series"]
-    if item["kind"] == "platforms":
-        bars = "".join(f'<rect x="{i*100/len(values):.2f}" y="{30-28*v:.2f}" width="{80/len(values):.2f}" height="{28*v:.2f}" fill="var(--calm)"/>' for i,v in enumerate(values))
-        return f'<svg viewBox="0 0 100 32">{bars}</svg>'
-    if item["kind"] in {"trend", "interface_trend", "peak"}:
-        coords = " ".join(f"{3+i*94/(len(values)-1):.2f},{28-25*v:.2f}" for i,v in enumerate(values))
-        return f'<svg viewBox="0 0 100 32"><polyline points="{coords}" fill="none" stroke="var(--calm)" stroke-width="2"/></svg>'
-    marker = (f'<path d="M{100*values[1]:.2f} 7v17" stroke="var(--text)" stroke-width="1.5"/>'
-              if len(values)>1 else "")
-    return (f'<svg viewBox="0 0 100 32"><rect y="12" width="100" height="7" fill="var(--track)"/>'
-            f'<rect y="12" width="{100*values[0]:.2f}" height="7" fill="var(--calm)"/>{marker}</svg>')
+def spark(values, peak=False):
+    """Monthly sparkline for a card; the highest month gets a dot."""
+    top = max(values) if values else 0
+    if len(values) < 2 or not top:
+        return ""
+    pts = [(4 + i * 192 / (len(values) - 1), 34 - 30 * v / top) for i, v in enumerate(values)]
+    line = " ".join(f"{x:.2f},{y:.2f}" for x, y in pts)
+    x, y = pts[values.index(top)]
+    return (f'<svg class="spark" viewBox="0 0 200 38" role="img" aria-label="Custo mensal"><polyline points="{line}" '
+            f'fill="none" stroke="var(--calm)" stroke-width="2"/><circle cx="{x:.2f}" cy="{y:.2f}" r="3.5" fill="var(--calm-hi)"/></svg>')
 
 
-def companies(n):
-    return f"{n} empresa" if n == 1 else f"{n} empresas"
+def span(ms):
+    a, b = month(ms[0]), month(ms[-1])
+    return a if a == b else (a[:3] if a[4:] == b[4:] else a) + " a " + b
 
 
-def rank_text(values, value):
-    if not values or value is None:
-        return "Sem comparação disponível"
-    below = sum(v < value for v in values)
-    if len(values) < 30:
-        return f"Acima de {below} de {companies(len(values))}"
-    return f"Acima de {pct(below / len(values))} das empresas"
+def blocks(r, base, M):
+    """Hotspots, rework, trend and platforms: deterministic, all visible, small samples say so."""
+    e = html.escape
+    out = ['<section class="blocks"><div class="eyebrow">Mapa do custo de interface</div><h2>Onde, quando e em que plataforma</h2>']
+    small = f"com menos de {defaults.MAINT_MIN_UI_PRS} PRs de interface a taxa não é publicada"
+    hs = r["hotspots"]
+    out.append('<div class="block hot"><div><small class="label">Pontos de manutenção</small>')
+    if hs:
+        out.append(f'<p class="lead"><b>{pct(hs["top_file_share"], 1)}</b> dos arquivos de interface ({num(hs["top_files"])} '
+                   f'de {num(hs["files"])}) recebem {pct(hs["top_maintenance_share"])} do custo de manutenção.</p>')
+        curve = " ".join(f"{4 + 192 * i / 100:.2f},{116 - 112 * v:.2f}" for i, v in enumerate(hs["curve"]))
+        x = 4 + 192 * hs["top_file_share"]
+        y = 116 - 112 * hs["top_maintenance_share"]
+        out.append(f'<svg class="lorenz" viewBox="0 0 200 120" role="img" aria-label="Curva de concentração da manutenção">'
+                   f'<path d="M4 116L196 4" stroke="var(--track)" stroke-dasharray="3 3"/><path d="M4 116H196" stroke="var(--track)"/>'
+                   f'<polyline points="{curve}" fill="none" stroke="var(--calm)" stroke-width="2"/>'
+                   f'<path d="M{x:.2f} 116V{y:.2f}" stroke="var(--dim)" stroke-dasharray="2 2"/>'
+                   f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3.5" fill="var(--calm-hi)"/></svg>'
+                   '<div class="axis"><small>arquivos de interface, do mais caro ao mais barato →</small></div>')
+        out.append('</div><div><small class="label">Módulos com mais custo de manutenção</small><ol class="bars">')
+        lead = hs["modules"][0]["share"] if hs["modules"] else 1
+        for m in hs["modules"]:
+            out.append(f'<li><span>{e(insights.short_scope(m["path"]))}</span><i style="width:{100 * m["share"] / lead:.1f}%"></i>'
+                       f'<small>{M(m["maintenance_cost"])} · {pct(m["share"], 1)} da manutenção · {num(m["prs"])} PRs · '
+                       f'{num(m["files"])} arquivos</small></li>')
+        out.append('</ol></div></div>')
+    else:
+        out.append(f'<p>A manutenção não foi medida: {small}.</p></div></div>')
+    out.append('<div class="pair">')
+    # Trend: monthly interface cost split new vs maintenance.
+    tr, months = r["trend"], r["by_month"]
+    measured = r["headline"]["interface_maintenance_share"] is not None
+    out.append('<div class="block"><small class="label">Tendência</small>')
+    if tr:
+        a, b = (pct(v) for v in (tr["first"], tr["second"]))
+        when1, when2 = span(tr["first_months"]), span(tr["second_months"])
+        out.append(f'<p class="lead">A manutenção ficou <b>estável</b>: {a} em {when1} e {b} em {when2}.</p>' if tr["stable"] else
+                   f'<p class="lead">A manutenção passou de {a} em {when1} para <b>{b}</b> em {when2}.</p>')
+    elif measured:
+        out.append(f'<p class="lead">Uma das metades do período tem menos de {defaults.MAINT_MIN_UI_PRS} PRs de interface: '
+                   'a comparação entre as metades não é publicada.</p>')
+    else:
+        out.append(f'<p class="lead">Custo mensal de interface. A divisão entre novo e manutenção não aparece: {small}.</p>')
+    top = max((m["interface_cost"] for m in months), default=0) or 1
+    out.append('<div class="stack">')
+    for m in months:
+        split = measured and m["interface_prs"] >= defaults.MAINT_MIN_UI_PRS
+        h, hm = 100 * m["interface_cost"] / top, 100 * m["interface_maintenance_cost"] / top if split else 0
+        out.append(f'<div><span style="height:{h - hm:.1f}%" class="{"new" if split else "all"}"></span>'
+                   f'<span style="height:{hm:.1f}%" class="maint"></span><small>{month(m["month"])[:3]}</small></div>')
+    out.append('</div><small class="legend"><i class="maint"></i> manutenção　<i class="new"></i> trabalho novo　·　'
+               f'pico {M(top)}</small></div>')
+    # Rework: new work followed by maintenance on the same files.
+    rw = r["rework"]
+    out.append(f'<div class="block"><small class="label">Retrabalho em {defaults.REWORK_DAYS} dias</small>')
+    if rw and rw["share"] is not None:
+        out.append(f'<p class="lead"><b>{pct(rw["share"], 1)}</b> do custo de trabalho novo em interface foi em arquivos que '
+                   f'receberam um PR de manutenção em até {defaults.REWORK_DAYS} dias.</p>'
+                   f'<p>Essa manutenção seguinte custou {M(rw["followup_cost"])}, em {num(rw["followup_prs"])} PRs. '
+                   f'Amostra: {num(rw["new_prs"])} PRs de trabalho novo, {num(rw["reworked_prs"])} com manutenção depois em algum arquivo.</p>')
+        values = sorted(p["rework_share"] for p in base["points"] if p.get("rework_share") is not None)
+        median = base["percentiles"].get("rework_share", {}).get("p50")
+        if median is not None and len(values) >= defaults.BENCH_MIN:
+            rank = rank_text(values, rw["share"])
+            out.append(f'<p>Posição na base: {rank[0].lower() + rank[1:]} (mediana {pct(median, 1)}).</p>')
+        out.append(f'<small class="limit">Só entram PRs mergeados até {defaults.REWORK_DAYS} dias antes do fim do período. '
+                   'Manutenção vem do título e dos rótulos.</small>')
+    elif rw:
+        out.append(f'<p class="lead">Amostra pequena: {num(rw["new_prs"])} PRs de trabalho novo com {defaults.REWORK_DAYS} dias '
+                   f'de observação; {small}.</p>')
+    else:
+        out.append(f'<p class="lead">A manutenção não foi medida: {small}.</p>')
+    out.append('</div></div>')
+    # Platforms.
+    pf = r["platforms"]
+    out.append('<div class="block plat"><small class="label">Plataformas</small>')
+    shown = pf["shown"]
+    if len(shown) == 1:
+        out.append(f'<p class="lead"><b>{pct(shown[0]["share"])}</b> do custo de interface é '
+                   f'{e(defaults.PLATFORM_LABELS[shown[0]["platform"]])}.</p>')
+    out.append('<ol class="bars">' if len(shown) > 1 else '<ol class="bars single">')
+    for i, x in enumerate(shown):
+        label = defaults.PLATFORM_LABELS[x["platform"]]
+        rate = (f'{pct(x["maintenance_share"])} em manutenção' if x["maintenance_share"] is not None else
+                f'manutenção não publicada ({num(x["prs"])} PRs)' if measured else f'{num(x["prs"])} PRs')
+        value = "" if len(shown) == 1 else (f'<b>{pct(x["share"])}</b>' if i == 0 else pct(x["share"])) + " do custo de interface · "
+        out.append(f'<li><span>{e(label)}</span><i style="width:{100 * x["share"]:.1f}%"></i>'
+                   f'<small>{value}{M(x["cost"])} · {rate}</small></li>')
+    out.append('</ol>')
+    if round(pf["hidden_share"], 3):
+        out.append(f'<small class="limit">Plataformas abaixo de {pct(defaults.PLATFORM_MIN_SHARE)} do custo de interface somam '
+                   f'{pct(pf["hidden_share"], 1)} e não aparecem. Plataforma pelo caminho e pela extensão do arquivo.</small>')
+    else:
+        out.append('<small class="limit">Plataforma pelo caminho e pela extensão do arquivo.</small>')
+    out.append('</div></section>')
+    return "".join(out)
 
 
 def evidence(r, base):
@@ -364,18 +581,21 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
         selection = validate(doc, insights.fallback(doc["findings"]))
     lookup = {f["id"]: f for f in doc["findings"]}
     if selection:
-        out.append('<section class="signals"><div class="eyebrow">Prioridades por custo no período</div><h2>Onde agir primeiro</h2><div class="cards">')
+        out.append('<section class="signals"><div class="eyebrow">Diagnóstico · ordem de custo no período</div>'
+                   '<h2>O que os números mostram</h2><div class="cards">')
         for card in selection:
             f = lookup[card["finding_id"]]
-            eyebrow = "Comparação anual" if f["kind"] == "annual_gap" else f["money_formatted"] + " no período"
-            if f["direction"] == "better":
-                eyebrow = "Ponto forte · " + eyebrow
-            comparison = f'<p>{e(f["comparison"])}</p>' if "comparison" in f else ""
-            action = f'<p class="action"><b>Ação</b> · {e(card["action"])}</p>' if card["action"] else ""
-            out.append(f'<div class="card"><small>{e(eyebrow)}</small><h3>{e(card["title"])}</h3>'
-                       f'<small class="scope">{e(f["scope_label"])}</small><strong>{e(f["caption"])}</strong>{mini_chart(f)}'
-                       f'{comparison}<p>{e(card["so_what"])}</p>{action}</div>')
+            q = f["quando"]
+            facts = [("Escopo", e(f["scope_label"]) if f["scope"] != r["org"] else ""),
+                     ("Onde", "<br>".join(e(x) for x in f["onde"])),
+                     ("Quando", spark(q["values"]) + f'<small>{e(q["labels"][0])} a {e(q["labels"][-1])}</small>' if q["values"] else ""),
+                     ("Comparação", e(f.get("comparison", ""))), ("Evidência", e(f["evidence"]))]
+            limit = f'<small class="limit">{e(f["limit"])}</small>' if "limit" in f else ""
+            out.append(f'<article class="card"><div><b class="quanto">{e(f["quanto"])}</b><h3>{e(card["title"])}</h3>'
+                       f'<p>{e(card["diagnosis"])}</p>{limit}</div><dl>'
+                       + "".join(f"<div><dt>{k}</dt><dd>{v}</dd></div>" for k, v in facts if v) + "</dl></article>")
         out.append('</div></section>')
+    out.append(blocks(r, base, M))
     out.append(f"""<section class="method"><div class="eyebrow">Método de atribuição</div><h2>Do PR ao custo de interface</h2>
 <svg class="flow" viewBox="0 0 100 3" preserveAspectRatio="none" aria-hidden="true"><path d="M12.5 1.5h75" stroke="var(--muted)" stroke-width=".4"/>
 <path d="M12 1.5l.5 -1 .5 1 -.5 1z M37 1.5l.5 -1 .5 1 -.5 1z M62 1.5l.5 -1 .5 1 -.5 1z M87 1.5l.5 -1 .5 1 -.5 1z" fill="var(--calm)"/></svg><div class="steps"><div><small>01 · Mudança efetiva</small><h3>{num(c['prs_scored'])} {'PR' if c['prs_scored']==1 else 'PRs'}</h3><p>Linhas e arquivos após exclusões.</p></div>
@@ -384,7 +604,7 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
 <div><small>04 · Divisão por área</small><h3>{M(ui['cost'])} em interface</h3><p>Custo por linhas efetivas de cada área. Arquivo sem linhas recebe peso um.</p></div></div>
 <p>{'Testes unitários contam com o código que testam. ' if ln['tests']['unit_tests_follow_area'] else ''}Testes de integração têm área própria. Manutenção vem do rótulo do PR (bug ou funcionalidade) e, sem rótulo, de palavras de correção no título. Refatorações sem essas palavras contam como trabalho novo.</p>
 <p>Ficaram fora do custo {num(c['prs_bot'])} {'PR' if c['prs_bot']==1 else 'PRs'} de bots e automações (traduções, dependências) e {num(c['prs_duplicate'])} {'PR duplicado' if c['prs_duplicate']==1 else 'PRs duplicados'}, que repetem trabalho de outro PR.{(" Desses, " + num(c['prs_release_copy']) + (" é cópia" if c['prs_release_copy']==1 else " são cópias") + " de release ou merge com os mesmos arquivos de outros PRs.") if c['prs_release_copy'] else ""}</p></section>
-<aside><a href="{e(defaults.CLOSING_URL)}">{e(defaults.CLOSING_TEXT)}</a></aside>
+<p class="closing"><a href="{e(defaults.CLOSING_URL)}">{e(defaults.CLOSING_TEXT)}</a></p>
 <footer>Relatório gerado no seu ambiente. Nenhum dado saiu dele.</footer></main></body></html>""")
     return "\n".join(out)
 

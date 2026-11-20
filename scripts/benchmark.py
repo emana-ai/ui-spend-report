@@ -37,15 +37,17 @@ def aggregate(reports, sectors=None):
             point[METRICS[1]] = None
         ui = r["interface"]
         point["fix_share"] = ui["fix_prs"] / ui["prs"] if ui.get("prs") else None
+        point["rework_share"] = (r.get("rework") or {}).get("share")  # absent in reports before r7
         point.update(team_size=bucket(r["counts"]["developers"]), sector=(sectors or {}).get(r["org"], "Software"))
         points.append(point)
         prs += r["counts"]["prs_scored"]
     if not points:
         raise ValueError("Base vazia")
     points.sort(key=lambda p: (p["interface_share"], p["interface_maintenance_share"] or 0,
-                               p["interface_maintenance_share"] is None, p["team_size"], p["sector"], p["fix_share"] or 0, p["fix_share"] is None))
+                               p["interface_maintenance_share"] is None, p["team_size"], p["sector"], p["fix_share"] or 0, p["fix_share"] is None,
+                               p["rework_share"] or 0, p["rework_share"] is None))
     percentiles = {}
-    for metric in (*METRICS, "fix_share"):
+    for metric in (*METRICS, "fix_share", "rework_share"):
         values = [p[metric] for p in points if p[metric] is not None]
         percentiles[metric] = {f"p{q}": quantile(values, q / 100) for q in (25, 50, 75)} if values else {}
     return dict(points=points, prs_scored=prs, percentiles=percentiles)

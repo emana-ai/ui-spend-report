@@ -131,8 +131,10 @@ class Round6(unittest.TestCase):
         self.assertIn("A manutenção não foi medida: o período teve 29 PRs de interface", page)
         import benchmark, insights
         base = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
-        self.assertFalse({"capacity", "annual_gap", "module", "trend", "fix_share", "new"}
-                         & {f["kind"] for f in insights.findings(r, base)})
+        self.assertFalse({"capacity", "fix_share"} & {f["kind"] for f in insights.findings(r, base)})
+        self.assertEqual((r["hotspots"], r["rework"], r["trend"]), (None, None, None))
+        self.assertIsNone(r["platforms"]["shown"][0]["maintenance_share"])
+        self.assertIn("Custo mensal de interface. A divisão entre novo e manutenção não aparece", page)
         prs["app"].append(pr(99, "ana", "2026-01-10T00:00:00Z", [["src/components/z.tsx", 5, 0]], title="fix: y"))
         self.assertEqual(report.analyse(MANIFEST, prs, {}, 1000, 160, "all")["headline"]["interface_maintenance_share"], 1)
 
@@ -161,3 +163,118 @@ class Round6(unittest.TestCase):
         ov = {"app/ios/": {"force": "interface"}, "app/Android/": {"force": "interface"}}
         r = report.analyse(MANIFEST, sample(files), ov, 1000, 160, "all")
         self.assertEqual(r["interface"]["native_cost"], r["interface"]["cost"])
+
+
+def rec(path, day, cost, maint, pr=None, platform="web"):
+    from datetime import datetime, timedelta
+    at = datetime(2026, 1, 1) + timedelta(days=day)
+    return dict(pr=("app", pr if pr is not None else day), file=("app", path), month=at.strftime("%Y-%m"), at=at,
+                cost=cost, maint=maint, fix=False, native=False, dir="app", module=report.module("app", path),
+                platform=platform, surface=None)
+
+
+class Round7(unittest.TestCase):
+    def test_hotspots_concentration(self):
+        recs = [rec("src/modules/a/x.tsx", 1, 80, True), rec("src/modules/b/y.tsx", 2, 15, True),
+                rec("src/modules/b/z.tsx", 3, 5, True)] + [rec(f"src/ui/{i}.tsx", 4 + i, 10, False) for i in range(7)]
+        h = report.hotspots(recs)
+        self.assertEqual((h["files"], h["top_files"], h["maintenance_files"]), (10, 1, 3))
+        self.assertAlmostEqual(h["top_file_share"], 0.1)
+        self.assertAlmostEqual(h["top_maintenance_share"], 0.8)  # one file of ten carries 80%
+        self.assertEqual((h["curve"][0], h["curve"][10], h["curve"][-1]), (0, 0.8, 1))
+        self.assertEqual([m["path"] for m in h["modules"]], ["app/src/modules/a", "app/src/modules/b"])
+        self.assertEqual((h["modules"][1]["share"], h["modules"][1]["prs"], h["modules"][1]["files"]), (0.2, 2, 2))
+        self.assertEqual(report.module("n8n", "packages/frontend/editor-ui/src/features/ai/chat/X.vue"),
+                         "n8n/packages/frontend/editor-ui/src/features/ai")
+        self.assertEqual(report.module("web", "ui/button/x.tsx"), "web/ui")
+
+    def test_rework_window(self):
+        from datetime import datetime
+        until = datetime(2026, 4, 1)
+        recs = [rec("a.tsx", 0, 10, False, 1), rec("b.tsx", 0, 30, False, 1),   # new work, two files
+                rec("a.tsx", 30, 4, True, 2),                                      # day 30: inside the window
+                rec("b.tsx", 31, 6, True, 3),                                      # day 31: outside
+                rec("c.tsx", 10, 20, False, 4), rec("c.tsx", 10, 5, True, 5),      # same instant: not after
+                rec("d.tsx", 80, 50, False, 6), rec("d.tsx", 81, 7, True, 7)]      # merged < 30 days before the end
+        r = report.rework(recs, until)
+        self.assertEqual((r["new_prs"], r["reworked_prs"]), (2, 1))
+        self.assertEqual((r["new_cost"], r["reworked_cost"]), (60, 10))  # file level: only a.tsx, not the whole PR
+        self.assertEqual((r["followup_cost"], r["followup_prs"]), (4, 1))
+        self.assertIsNone(r["share"])                                     # 2 new-work PRs < 30: not published
+        many = recs + [rec(f"n{i}.tsx", 1, 1, False, 100 + i) for i in range(28)]
+        self.assertAlmostEqual(report.rework(many, until)["share"], 10 / 88)
+
+    def test_trend_halves(self):
+        months = ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"]
+        ui = dict.fromkeys(months, 100)
+        prs = dict.fromkeys(months, 20)
+        maint = {"2026-01": 30, "2026-02": 40, "2026-03": 99, "2026-04": 50, "2026-05": 60}
+        t = report.trend(months, ui, maint, prs)
+        self.assertEqual((t["first"], t["second"], t["first_months"], t["second_months"]),
+                         (0.35, 0.55, months[:2], months[3:]))  # odd count: the middle month is left out
+        self.assertFalse(t["stable"])
+        maint["2026-04"], maint["2026-05"] = 33, 38
+        self.assertTrue(report.trend(months, ui, maint, prs)["stable"])  # +0,5 p.p.
+        prs["2026-05"] = 5
+        self.assertIsNone(report.trend(months, ui, maint, prs))  # second half: 25 interface PRs < 30
+
+    def test_platforms(self):
+        for path, name in (("ios/App/Home.swift", "ios"), ("app-android/src/main/res/layout/a.xml", "android"),
+                           ("lib/screens/home.dart", "mobile"), ("apps/mobile/src/Home.tsx", "mobile"),
+                           ("apps/desktop/src/Window.tsx", "desktop"), ("src/ui/Main.qml", "desktop"),
+                           ("app/views/home/index.html.erb", "server"), ("Pages/Login.cshtml", "server"),
+                           ("apps/web/src/Home.tsx", "web"), ("src/studios/List.tsx", "web")):
+            self.assertEqual(report.platform("repo", path), name, path)
+        self.assertEqual(report.platform("acme-ios", "Sources/Home.swift"), "ios")
+        recs = ([rec(f"web/{i}.tsx", i, 10, i % 2 == 0, i) for i in range(30)]
+                + [rec("ios/A.swift", 1, 20, True, 100, "ios"), rec("x.qml", 2, 2, False, 101, "desktop")])
+        pf = report.platforms(recs, sum(x["cost"] for x in recs), True)
+        self.assertEqual([x["platform"] for x in pf["shown"]], ["web", "ios"])  # desktop 0,6% < 3%: hidden
+        self.assertAlmostEqual(pf["hidden_share"], 2 / 322)
+        self.assertEqual(pf["shown"][0]["maintenance_share"], 0.5)
+        self.assertIsNone(pf["shown"][1]["maintenance_share"])  # 1 iOS PR < 30: rate not published
+        self.assertIsNone(report.platforms(recs, 322, False)["shown"][0]["maintenance_share"])
+
+    def test_overrides_move_platforms(self):
+        files = [["Android/feature/Screen.kt", 10, 0], ["src/components/A.tsx", 10, 0]]
+        r = report.analyse(MANIFEST, sample(files), {"app/Android/": {"force": "interface"}}, 1000, 160, "all")
+        self.assertEqual({x["platform"] for x in r["platforms"]["shown"]}, {"android", "web"})
+        r = report.analyse(MANIFEST, sample(files), {"app/Android/": {"force": "backend"}}, 1000, 160, "all")
+        self.assertEqual({x["platform"] for x in r["platforms"]["shown"]}, {"web"})
+
+    def test_android_manifest_and_build_dirs(self):
+        for path in ("app/src/main/AndroidManifest.xml", "AndroidManifest.xml", "feature/src/debug/AndroidManifest.xml"):
+            self.assertEqual(classify.rule_area(path), "infra", path)
+        self.assertEqual(classify.area("app", "app/src/main/AndroidManifest.xml", {"app/app/": "interface"}), "infra")
+        for path in ("src/App/obj/Debug/App.AssemblyInfo.cs", "android/.gradle/8.0/checksums.bin", "app/.cxx/x/build.ninja"):
+            self.assertEqual(classify.exclusion(path), "build", path)
+        files = [["app/src/main/AndroidManifest.xml", 5, 0], ["app/src/main/java/a/HomeActivity.kt", 10, 0]]
+        r = report.analyse(MANIFEST, sample(files), {}, 1000, 160, "all")
+        self.assertGreater({a["area"]: a["cost"] for a in r["areas"]}["interface"], 0)  # still a module marker
+
+    def test_closing_constant(self):
+        import defaults
+        self.assertEqual(defaults.CLOSING_TEXT, "Este relatório mostra onde o dinheiro vai. A emana.ai mostra onde a "
+                                                "interface falha com as pessoas e muda a tela em produção.")
+        r = report.analyse(MANIFEST, sample([["src/components/A.tsx", 5, 0]]), {}, 1000, 160, "all")
+        page = report.render(r)
+        self.assertIn(f'<p class="closing"><a href="{defaults.CLOSING_URL}">{defaults.CLOSING_TEXT}</a></p>', page)
+        for gone in ("<details", "title=", "Ação", "Onde agir"):
+            self.assertNotIn(gone, page)
+
+    def test_rework_base_metric(self):
+        import benchmark
+        files = lambda i: [[f"src/components/{i}.tsx", 5, 0], ["src/components/Shared.tsx", 1, 0]]
+        prs = {"app": [pr(i, "ana", f"2026-01-{i + 1:02d}T00:00:00Z", files(i)) for i in range(30)]
+               + [pr(99, "ana", "2026-01-20T00:00:00Z", [["src/components/Shared.tsx", 3, 0]], title="fix: x")]}
+        r = report.analyse(MANIFEST, prs, {}, 1000, 160, "all")
+        self.assertGreater(r["rework"]["share"], 0)
+        base = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
+        self.assertEqual(base["percentiles"]["rework_share"]["p50"], round(r["rework"]["share"], 6))
+        self.assertIn("Posição na base", report.render(r, base=base))
+        asset = __import__("json").loads(benchmark.ASSET.read_text(encoding="utf-8"))
+        self.assertNotIn("rework_share", asset["percentiles"])  # Hermes recomputes the base; until then: hidden
+        self.assertNotIn("Posição na base", report.render(r, base=asset))
+        old = dict(r)
+        old.pop("rework")
+        self.assertIsNone(benchmark.aggregate([old])["points"][0]["rework_share"])  # pre-r7 reports

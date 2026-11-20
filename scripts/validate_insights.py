@@ -3,12 +3,24 @@
 import argparse
 import json
 import re
+import unicodedata
 from pathlib import Path
 
-LIMITS = {"title": 8, "so_what": 22, "action": 16}
+LIMITS = {"title": 8, "diagnosis": 22}
 NUMBER = re.compile(r"(?<!\w)(?:(?:R\$|US\$|€|£)\s*)?[+−-]?\d+(?:[.,]\d+)*(?:%|\s+(?:mil|mi|p\.p\.))?(?!\w)")
 LOW = r"(?:baixa|reduzida|inferior|abaixo)"
 HIGH = r"(?:alta|elevada|superior|acima)"
+# The report diagnoses; it never prescribes. Imperatives and advice phrases, matched without accents.
+PRESCRIPTION = re.compile(
+    r"\b(?:defina|revise|teste|testem|priorize|considere|recomendamos|recomenda-se|recomendo|sugerimos|sugere-se|"
+    r"sugiro|deveria|deveriam|devemos|e preciso|e necessario|vale a pena|convem|reduza|invista|adote|crie|implemente|"
+    r"migre|mova|desconte|comece|separe|confira|procure|identifique|compare|reserve|inclua|trate|evite|garanta|"
+    r"foque|aplique|elimine|unifique|padronize|automatize|documente|acompanhe|monitore|avalie|corrija|refatore)\b"
+)
+
+
+def plain(text):
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
 
 
 def validate(doc, selection):
@@ -17,37 +29,28 @@ def validate(doc, selection):
         raise ValueError("Selecione de três a cinco evidências, ou todas se houver menos de três.")
     previous = float("inf")
     seen = set()
-    comparisons = {}
     for card in selection:
         if not isinstance(card, dict) or set(card) != {"finding_id", *LIMITS}:
-            raise ValueError("Campos de insight inválidos")
+            raise ValueError("Campos de insight inválidos: use finding_id, title e diagnosis")
         fid = card["finding_id"]
         if not isinstance(fid, str) or fid not in candidates:
             raise ValueError("finding_id desconhecido")
         f = candidates[fid]
-        direction = f["direction"]
-        family = f["metric_family"]
-        if direction != "neutral":
-            previous_direction = comparisons.get(family)
-            if previous_direction and (previous_direction != direction or direction == "mixed"):
-                raise ValueError("Comparações opostas da mesma família exigem um achado conjunto")
-            comparisons[family] = direction
-        if direction == "better" and card["action"] != "":
-            raise ValueError("Ponto forte deve ter ação vazia")
         pair = (f["scope"], f["kind"])
         if pair in seen or f["money_at_stake"] > previous:
             raise ValueError("Escopo e tipo repetidos ou ordem monetária incorreta")
         seen.add(pair)
         previous = f["money_at_stake"]
-        allowed = set(NUMBER.findall(" ".join([*f["formatted"], f["money_formatted"], f["caption"]])))
+        allowed = set(NUMBER.findall(" ".join([*f["formatted"], *f.get("base_formatted", []), f["money_formatted"], f["caption"], f["quanto"]])))
         for field, limit in LIMITS.items():
             text = card[field]
-            if field == "action" and text == "" and direction in {"better", "mixed"}:
-                continue
             if not isinstance(text, str) or not 1 <= len(text.split()) <= limit:
                 raise ValueError(f"{field}: limite de {limit} palavras")
             if set(NUMBER.findall(text)) - allowed:
                 raise ValueError(f"{field}: número sem evidência vinculada")
+            word = PRESCRIPTION.search(plain(text))
+            if word:
+                raise ValueError(f"{field}: o relatório diagnostica, não recomenda («{word[0]}»)")
             if field == "title" and not NUMBER.search(text):
                 names = f["scope"].strip("/").split("/")
                 if not any(
@@ -70,6 +73,11 @@ def validate(doc, selection):
                     re.I,
                 ):
                     raise ValueError("Qualificação de manutenção contradiz a mediana")
+        # A comparison with the base is stated once per card: the rendered line, or one agent field.
+        fields = [card["title"], card["diagnosis"], f.get("comparison", "")]
+        base = set(f.get("base_formatted", []))
+        if base and sum(bool(base & set(NUMBER.findall(text))) for text in fields) > 1:
+            raise ValueError("Comparação com a base repetida no mesmo cartão")
     return selection
 
 

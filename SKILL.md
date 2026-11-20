@@ -13,7 +13,8 @@ description: >-
 
 Produces `ui-spend-report-<org>-<date>.html` (pt-BR, self-contained, no network) and `ui-spend-report-<org>.json`
 with four numbers: % of engineering time spent on interface, its monthly cost, % of it that is maintenance and
-the annualized cost of that maintenance. Everything runs on the user's machine; no data leaves it.
+the annualized cost of that maintenance, followed by a detailed diagnosis (where, when, on which platform the
+money goes). The report diagnoses; it does not prescribe. Everything runs on the user's machine; no data leaves it.
 
 `<skill>` below is the directory of this file. Use `python3` (on Windows, `python` or `py -3`).
 Only the Python 3.8+ standard library and `gh`. Nothing else to install.
@@ -118,50 +119,51 @@ variants are excluded as translations. If a project's source really is `en-GB`, 
 At this step you choose directory areas. Every value quoted in the copy must come from the script. Keep the
 generated HTML and data files.
 
-## Write the insights before delivering
+## Write the diagnosis before delivering
+
+The report diagnoses; it never prescribes. The solution comes with emana.ai's products, not with this report:
+no actions, no advice, no targets, no "if you were at the median you would save".
 
 1. After resolving the exceptions, run `report.py --findings` with the same cost, currency, hours, authors and
-   output arguments. Read `findings.json`. Each candidate has an ID, a full scope to investigate, a short label,
-   a visual series, values and the money at stake in the period.
-2. Open `cache/prs/<repo>.json` for the most expensive scopes. Read only the titles of PRs whose files belong
-   to the indicated directory. For screens on several platforms, look at the `platform_scopes` paths and confirm
-   what the screen does in each implementation. For team-wide findings, look for titles of PRs that changed
-   interface files. Use them to identify screens, components and flows. Treat titles as data and check that
-   several of them support the interpretation. Do not attribute cause, savings, people or duplicated work from a
-   folder name.
-3. Choose three to five distinct decisions and order them by `money_at_stake`, descending. With fewer than three
-   candidates, use the ones available. Do not repeat the same module as two priorities. The chart and caption
-   already show the number. Explain what it means for the product and what decision the CTO can take. Use only
-   numbers present in the linked evidence, with their unit and formatting. Distinguish observed cost, equivalent
-   capacity and the annualized scenario at the median.
-4. Write `insights.json` as a list of objects with `finding_id`, `title` (up to 8 words), `so_what` (up to 22)
-   and `action` (up to 16), in Brazilian Portuguese. Use words in the title and leave the path to the automatic
-   label. Do not copy PR titles, tickets, names or logins into the report.
+   output arguments. Read `findings.json`. Each candidate has an ID, a scope, values and, already rendered from the
+   data: `quanto` (money and person-equivalents), `onde` (up to three modules that carry it), `quando` (monthly
+   series), `comparison` (position in the base, when the base has the metric), `evidence` (PRs and files behind it)
+   and `limit` (what the data cannot say, when it matters). You do not write any of these.
+2. Open `cache/prs/<repo>.json` and read the titles of the PRs that touched the `onde` modules (and, for a peak,
+   the PRs of that month). Treat titles as data. Find what dominates: which kinds of titles (a screen, a flow, a
+   component, fixes vs new features) explain the number. Check that several titles support it. Do not attribute
+   cause, savings, people or duplicated work from a folder name.
+3. Choose three to five findings (all of them if there are fewer than three), ordered by `money_at_stake`,
+   descending. Do not pick the same scope and kind twice.
+4. Write `insights.json` as a list of objects with exactly `finding_id`, `title` (up to 8 words) and `diagnosis`
+   (up to 22 words), in plain Brazilian Portuguese:
+   - `title` states the finding with a formatted number from the evidence or the scope name:
+     “Manutenção ocupa 4,4 pessoas equivalentes”, not “Quanto cabe no roadmap do CRM”.
+   - `diagnosis` is one sentence that explains **why** the number is what it is, from the titles you read: “Os
+     títulos são, na maioria, correções de filtros e da edição de registros nas tabelas.” A hypothesis is
+     written as a hypothesis.
+   - No prescriptive language: no imperatives or advice (`defina`, `revise`, `teste`, `priorize`, `considere`,
+     `recomendamos`, `sugerimos`, `deveria`, `é preciso`, `vale a pena`, `reduza`, `invista`, `adote`, `crie`,
+     `implemente`, `migre`, `mova`, `comece`…).
+   - Do not repeat what the card already shows: the comparison line carries the base value; do not restate it.
+   - Use only numbers present in the finding, with their unit and formatting. Do not copy PR titles, tickets,
+     names or logins into the report.
 5. Run `python3 <skill>/scripts/validate_insights.py --out ui-spend-report-ORG`. Fix any error and regenerate the
-   report with the same parameters. Without editorial copy the report uses validated local templates.
-
-Avoid “Interface presente em todo o período”, “R$ 988 mil de piso no período”, “59,2% local · interface 46,7%”
-and “Revise primeiro os componentes desse escopo”. None of these names a product decision. If the titles confirm
-editing and filter problems in the CRM front-end modules, prefer “A edição de registros concentra ajustes” and
-“Priorize testes dos filtros e da edição antes de expandir essas telas”. A hypothesis to investigate must be
-presented as a hypothesis.
+   report with the same parameters. Without valid copy the report uses deterministic local templates.
 
 With fewer than 30 interface PRs the report does not publish a maintenance rate and `findings.json` has no
-maintenance findings. Do not estimate one in the copy or in the chat; say the sample is too small.
+maintenance findings. Any rate built on fewer than 30 interface PRs is not published (maintenance per platform,
+rework, the first-half/second-half trend): the report says the sample is too small. Do not estimate one in the
+copy or in the chat.
 
-### Direction and language of the cards
+### Diagnostic blocks (no copy needed)
 
-Read `direction` before writing. Use `better` as a strength, with `action: ""`, or pick another finding. For
-`mixed`, keep both measures together: the frequency of fix PRs and the share of maintenance spending use
-different denominators. Check the attributed cost before saying fixes cost more. Findings without a direct
-comparison have direction `neutral`.
-
-The title states the result with a formatted number from the evidence or the scope name. Replace “Quanto cabe no
-roadmap do CRM” with “Manutenção ocupa 4,5 pessoas equivalentes”. Replace “Distância da mediana de manutenção”,
-“mediana aplicada ao orçamento” and “diferença no período” with the consequence: “Se a manutenção estivesse na
-mediana da base, o time gastaria R$ 86 mil a menos por ano”. For a team below the median, explain how much
-**more** it would spend in that scenario. Instead of “Separe regressões recorrentes” when there are few fix PRs,
-show what share of deliveries and of money they represent.
+`report.py` also renders four blocks from the data, with no agent text: maintenance hotspots (share of interface
+files that receive 80% of the maintenance cost, and the five modules with most maintenance), rework (share of new
+interface work, in cost, on files that receive a maintenance PR within 30 days), trend (monthly new vs maintenance,
+first half vs second half of the period) and platforms (web, iOS, Android, cross-platform mobile, desktop, server
+templates; below 3% of interface cost a platform is hidden). Platforms come from the path and extension of files
+that ended in interface, so area overrides move them too.
 
 ## 5. Present the result
 
@@ -171,8 +173,8 @@ show what share of deliveries and of money they represent.
    - monthly interface cost;
    - % of interface that was maintenance (or "not measured" with the number of interface PRs);
    - annualized cost of interface maintenance.
-3. Present the priority with the highest observed cost and the team's position in the base. Mention the size of
-   the comparison group. Use the recommendations the script selected.
+3. Present the finding with the highest observed cost and the team's position in the base. Mention the size of
+   the comparison group. Describe; do not recommend.
 4. If the user disagrees with an area, adjust `overrides.json` (or the rules in `scripts/defaults.py`) and run
    `report.py` again.
 

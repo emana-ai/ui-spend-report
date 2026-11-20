@@ -24,3 +24,17 @@ def money(x, cur):
 def month(m):
     y, mm = m.split("-")
     return f"{MESES[int(mm) - 1]}/{y}"
+
+
+def companies(n):
+    return f"{n} empresa" if n == 1 else f"{n} empresas"
+
+
+def rank_text(values, value):
+    """Position in the base: share of companies with a strictly lower value (counts below 30 companies)."""
+    if not values or value is None:
+        return "Sem comparação disponível"
+    below = sum(v < value for v in values)
+    if len(values) < 30:
+        return f"Acima de {below} de {companies(len(values))}"
+    return f"Acima de {pct(below / len(values))} das empresas"

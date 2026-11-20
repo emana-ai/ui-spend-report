@@ -45,7 +45,7 @@ EXCLUDE = [
     ("build", r"(\.(xcframework|framework)/|\.(swiftinterface|swiftdoc|car)$|(^|/)(_CodeSignature/|CodeResources$|embedded\.mobileprovision$))"),
     ("lockfile", r"(^|/)([\w.-]*\.lock|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|poetry\.lock|pipfile\.lock|uv\.lock|gemfile\.lock|cargo\.lock|composer\.lock|go\.sum|mix\.lock|podfile\.lock|packages\.lock\.json|gradle\.lockfile|flake\.lock|pubspec\.lock|deps\.lock)$"),
     ("vendored", r"(^|/)(vendor|vendors|third[_-]party|thirdparty|3rd[-_]?party|3party|node_modules|bower_components|\.yarn)/"),
-    ("build", r"((^|/)(dist|\.next|\.nuxt|\.turbo|coverage|storybook-static)/|\.min\.(js|css)$|\.(js|css)\.map$|\.bundle\.js$)"),
+    ("build", r"((^|/)(dist|\.next|\.nuxt|\.turbo|coverage|storybook-static|obj|\.gradle|\.cxx)/|\.min\.(js|css)$|\.(js|css)\.map$|\.bundle\.js$)"),
     ("snapshot", r"((^|/)(__(snapshots|screenshots|golden)__|cassettes)/|\.(snap|ambr|har)$)"),
     ("migration", r"((^|/)(migrations?|migrate|alembic)/|\.migration\.[jt]s$)"),
     # Translations into other languages: usually catalog-extraction churn or translators, not dev work.
@@ -71,7 +71,7 @@ AREAS = [
     ("tests", r"(^|/)androidTest/", None),
     ("tests", r"((^|/)(__tests__|__specs__|__mocks__|__fixtures__|tests?|spec|specs|e2e|cypress|playwright|detox|maestro|testdata|test[_-]resources|test-utils|test_utils|testutils?|testlib|test-helpers?|testhelpers?|storetest|testing|fixtures|[\w.-]+-(e2e|tests?)[\w.-]*|e2e-[\w.-]+)/|[._-](test|spec|e2e|cy)\.[a-z]+$|(^|/)test_[^/]+\.py$|_test\.(go|py|exs?)$|_spec\.rb$|tests?\.(java|kt)$|(^|/)(playwright|cypress)\.config\.[cm]?[jt]s$)", None),
     # build and tool config, whatever folder or extension: always infra (incl. unit-test runner config)
-    ("infra", r"(^|/)(pnpm-workspace\.yaml|\.gitattributes|\.gitmodules|renovate\.json5?|gradle\.properties|action\.ya?ml|rust-toolchain(\.toml)?|\.yarnrc(\.yml)?|\.(ruby|python|java)-version|\.goreleaser\.ya?ml|\.golangci\.ya?ml|compose\.ya?ml|mise\.toml|knip\.json|composer\.json|components\.json|\.release-please-manifest\.json|release-please-config\.json|\.git-blame-ignore-revs|pytest\.ini|mypy\.ini|tox\.ini|metro\.config\.[cm]?js|analysis_options\.yaml|\.rubocop\.yml|sonar-project\.properties|proguard-rules\.pro|phpunit\.xml(\.dist)?|manifest\.in|lefthook\.ya?ml|crowdin\.ya?ml|cmakelists\.txt|deny\.toml|angular\.json|\.oxlintrc\.json|\.oxfmtrc\.jsonc?|\.coderabbit\.ya?ml|pubspec\.yaml|package\.swift|[\w.-]+\.(entitlements|xcconfig|pbxproj|xcscheme|xctestplan|xcprivacy|podspec|gemspec|csproj|props|neon)|tsdown\.config\.[cm]?[jt]s|_config\.yml|docusaurus\.config\.[cm]?[jt]s|(jest|vitest)\.(config|setup|workspace)[\w.-]*\.[cm]?[jt]s|setupTests\.[cm]?[jt]s)$|(^|/)(fastlane|buildsrc|gradle|\.githooks)/", None),
+    ("infra", r"(^|/)(pnpm-workspace\.yaml|\.gitattributes|\.gitmodules|renovate\.json5?|gradle\.properties|action\.ya?ml|rust-toolchain(\.toml)?|\.yarnrc(\.yml)?|\.(ruby|python|java)-version|\.goreleaser\.ya?ml|\.golangci\.ya?ml|compose\.ya?ml|mise\.toml|knip\.json|composer\.json|components\.json|\.release-please-manifest\.json|release-please-config\.json|\.git-blame-ignore-revs|pytest\.ini|mypy\.ini|tox\.ini|metro\.config\.[cm]?js|analysis_options\.yaml|\.rubocop\.yml|sonar-project\.properties|proguard-rules\.pro|phpunit\.xml(\.dist)?|manifest\.in|lefthook\.ya?ml|crowdin\.ya?ml|cmakelists\.txt|deny\.toml|angular\.json|\.oxlintrc\.json|\.oxfmtrc\.jsonc?|\.coderabbit\.ya?ml|pubspec\.yaml|package\.swift|androidmanifest\.xml|[\w.-]+\.(entitlements|xcconfig|pbxproj|xcscheme|xctestplan|xcprivacy|podspec|gemspec|csproj|props|neon)|tsdown\.config\.[cm]?[jt]s|_config\.yml|docusaurus\.config\.[cm]?[jt]s|(jest|vitest)\.(config|setup|workspace)[\w.-]*\.[cm]?[jt]s|setupTests\.[cm]?[jt]s)$|(^|/)(fastlane|buildsrc|gradle|\.githooks)/", None),
     ("interface", r"((^|/)(tailwind|postcss)\.config\.[cm]?[jt]s$|\.(swift|xcstrings|dart|po|pot|xliff|xlf|arb|strings|resx)$)", None),
     ("docs", r"((^|/)(docs?|documentation|handbook|adr|rfcs?)/|\.(md|mdx|rst|adoc)$|(^|/)(license|notice|authors|codeowners)(?![^/]*\.([cm]?[jt]sx?|go|php|py|rb|java|kt|rs|vue|svelte|swift|cs)$)[^/]*$)", None),  # License.go is code
     ("infra", r"(^\.github/|(^|/)\.(circleci|husky|devcontainer|vscode|idea|buildkite|gitlab|docker|changeset|cursor|claude|agents|codex|windsurf)/|(^|/)(\.[\w-]+ignore|owners)$|\.(tf|tfvars|hcl|sh|bash|zsh|ps1|bat|nix|patch|mdc)$)", None),
@@ -126,14 +126,34 @@ CONCENTRATION_MIN = 0.30
 TREND_MIN_MONTHS = 4
 TREND_MIN_SLOPE = 0.015
 TREND_MIN_R2 = 0.55
-WORK_MIX_MIN = 0.55
 NATIVE_MIN = 0.10
 BENCH_MIN = 4
-CLOSING_TEXT = "As telas que mais custam podem mudar sem entrar no roadmap. É isso que a emana.ai faz."
-CLOSING_URL = "https://emana.ai"
-HOTSPOT_MIN_MAINT_COST_SHARE = 0.05
 COHORT_MIN = 8
 FIX_MIN_PRS = 10
 FIX_GAP = 0.05
 FIX_MARKER = r"\b(fix(?:es|ed)?|bug(?:fix)?|hotfix|regression|correção|corrigir)\b"
 PEAK_MIN_RATIO = 1.25
+
+# --- Diagnostic blocks -----------------------------------------------------------
+# Hotspots: directories are cut one level below the last structural folder (src, modules, features…):
+# twenty/packages/twenty-front/src/modules/page-layout/widgets/x.tsx → …/modules/page-layout.
+MODULE_CONTAINERS = {"src", "lib", "app", "apps", "packages", "modules", "features", "frontend", "web", "client", "main"}
+HOTSPOT_TOP = 5
+HOTSPOT_COST_SHARE = 0.80     # "X% of interface files receive 80% of maintenance cost"
+REWORK_DAYS = 30              # new interface work whose files get a maintenance PR within N days after merge
+TREND_STABLE_PP = 0.03        # first half vs second half within ±3 pp: "estável"
+PLATFORM_MIN_SHARE = 0.03     # platforms below this share of interface cost are hidden
+# Platform of an interface file, matched on "<repo>/<path>"; first match wins, otherwise web.
+PLATFORMS = [
+    ("ios", r"\.(swift|m|mm|xib|storyboard|xcstrings)$|(^|/)([\w.-]*[-_.])?ios([-_.][\w.-]*)?/"),
+    ("android", r"\.(kt|java)$|(^|/)src/main/res/|(^|/)([\w.-]*[-_.])?android([-_.][\w.-]*)?/"),
+    ("mobile", r"\.dart$|(^|/)([\w.-]*[-_.])?(mobile|react-native|expo)([-_.][\w.-]*)?/"),
+    ("desktop", r"\.(qml|ui|xaml|axaml)$|(^|/)([\w.-]*[-_.])?(desktop|electron|tauri)([-_.][\w.-]*)?/"),
+    ("server", r"\.(erb|haml|slim|blade\.php|cshtml|razor|jsp|gsp|heex|leex|tmpl|gohtml|njk|jinja2?|twig|liquid|mustache)$|(^|/)app/(helpers|views|mailers)/|(^|/)resources/views/|_web/(components|live)/|(^|/)view/components/"),
+]
+PLATFORM_LABELS = {"web": "Web", "ios": "iOS", "android": "Android", "mobile": "Mobile multiplataforma",
+                   "desktop": "Desktop", "server": "Templates de servidor"}
+
+# Placeholder until the owner picks the final wording.
+CLOSING_TEXT = "Este relatório mostra onde o dinheiro vai. A emana.ai mostra onde a interface falha com as pessoas e muda a tela em produção."
+CLOSING_URL = "https://emana.ai"

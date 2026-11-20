@@ -49,7 +49,7 @@ Todos os parâmetros estão em `scripts/defaults.py`.
 Regras de caminho/extensão em ordem (`AREAS`), a primeira que casa vence: `tests`, configuração de build e de
 ferramentas (sempre `infra`, em qualquer pasta: `pnpm-workspace.yaml`, `.gitattributes`, `renovate.json`,
 `Package.swift`, `*.xcconfig`, `*.pbxproj`, `composer.json`, `jest.config.*`, `vitest.config.*`, `fastlane/`,
-`buildSrc/`, `gradle/`…), `docs`, `infra`,
+`buildSrc/`, `gradle/`, `AndroidManifest.xml`…), `docs`, `infra`,
 `data`, servidores MCP, raízes de front-end (`webapp/`, `frontend/`, `*-front/`, `*-ui/`…), marcadores fortes de
 backend (`api/`, `server/`, `trpc/`, `*-server/`…), extensões de interface (`.tsx`, `.vue`, `.css`,
 `.erb`…, templates de servidor `.blade.php`, `.cshtml`, `.razor`, `.jsp`, `.gsp`, `.heex`, `.tmpl`, `.njk`,
@@ -135,10 +135,60 @@ A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam i
 
 Um grupo por porte aparece apenas com oito ou mais empresas com denominador válido. Sem esse tamanho de amostra, o gráfico mostra apenas a base completa.
 
-`report.py --findings` grava todas as evidências antes da seleção editorial. A ordem usa dinheiro no período observado. A diferença anual de manutenção compara o gasto real com a mediana da base aplicada ao mesmo orçamento de interface. Para ordenar, essa diferença volta à duração observada. Os valores dos cartões podem se sobrepor.
+`report.py --findings` grava todas as evidências antes da seleção editorial. A ordem usa dinheiro no período
+observado. Os valores dos cartões podem se sobrepor.
 
-Capacidade equivalente divide custo mensal pelo custo mensal por pessoa. A concentração de manutenção usa a pasta com maior custo absoluto de manutenção, inclusive fora das maiores pastas por custo total. Uma única pasta recebe um único achado de concentração. Tendência usa regressão sobre a participação mensal de manutenção no custo de interface, com denominador positivo em todos os meses, inclinação mínima e qualidade de ajuste.
+O relatório diagnostica e não prescreve: os cartões não têm ação, e nenhuma comparação com a base vira economia ou
+meta (não há cenário "se a manutenção estivesse na mediana"). A posição na base aparece como posição ("acima de 81%
+das empresas"), com a mediana.
+
+Cada cartão mostra, calculado dos dados: **quanto** (custo no período, ou no mês para o pico, e pessoas
+equivalentes = custo ÷ meses ÷ custo mensal por pessoa), **onde** (os três módulos com mais custo no escopo do
+achado), **quando** (custo mensal do escopo; para a tendência de interface, a participação mensal), **comparação**
+(posição na base quando a métrica existe nela), **evidência** (PRs e arquivos de interface por trás do número) e
+**limite** (quando importa: manutenção identificada pelo título, amostra pequena, telas pareadas pelo nome). O
+agente escreve só o título e uma frase de diagnóstico. O validador recusa linguagem prescritiva (imperativos e
+conselhos, sem acento e por palavra inteira) e um cartão que repita a mesma comparação com a base em dois campos.
+
+Um **módulo** é o diretório um nível abaixo da última pasta estrutural do caminho (`src`, `lib`, `app`, `apps`,
+`packages`, `modules`, `features`, `frontend`, `web`, `client`, `main`): `twenty/packages/twenty-front/src/modules/
+page-layout/widgets/x.tsx` → `…/modules/page-layout`; `n8n/packages/frontend/editor-ui/src/features/ai/…` →
+`…/features/ai`.
+
+Capacidade equivalente divide custo mensal pelo custo mensal por pessoa. A concentração usa o repositório (ou,
+com um repositório só, a pasta) com maior custo de interface, acima de 30%.
+A tendência de interface usa regressão sobre a participação mensal de interface no custo do time, com custo
+positivo em todos os meses, inclinação mínima e qualidade de ajuste. O pico compara o mês mais caro com o custo
+mensal médio de interface.
 
 A frequência de correção conta cada PR pontuado com interface uma vez. Entre PRs de manutenção, título ou rótulo com marcador explícito de correção determina o numerador. A referência é a mediana das frequências por empresa. Relatórios antigos sem contagem de PRs de interface não contribuem para essa mediana.
 
-Em caminhos explícitos de plataforma, um mesmo identificador de tela em `screens/` ou `pages/` dentro da mesma família de produto constitui evidência de implementações paralelas. O maior custo observado de construção é a plataforma de referência. Cada outra plataforma contribui seu próprio custo observado. A equivalência funcional precisa ser conferida pelos títulos dos PRs. Esses custos não estimam economia.
+Em caminhos explícitos de plataforma, um mesmo identificador de tela em `screens/` ou `pages/` dentro da mesma família de produto constitui evidência de implementações paralelas. O maior custo observado de construção é a plataforma de referência. Cada outra plataforma contribui seu próprio custo observado. A equivalência funcional precisa ser conferida pelos títulos dos PRs. Esses custos não estimam economia. O achado só aparece com 30 ou mais PRs de interface nessa tela.
+
+## Blocos de diagnóstico
+
+Calculados de cada arquivo de interface de cada PR pontuado (custo do arquivo = custo do PR × peso do arquivo).
+Nada fica escondido atrás de clique.
+
+- **Pontos de manutenção**: custo de manutenção por arquivo de interface, do maior para o menor. A frase diz que
+  fração dos arquivos de interface tocados no período recebe 80% (`HOTSPOT_COST_SHARE`) do custo de manutenção; a
+  curva mostra a fração acumulada do custo contra a fração de arquivos. Os cinco módulos com mais custo de
+  manutenção aparecem pelo nome, com custo, fatia da manutenção, PRs e arquivos. Nunca por pessoa.
+- **Retrabalho em 30 dias** (`REWORK_DAYS`): para cada arquivo de interface de um PR de trabalho novo, o arquivo
+  conta como retrabalhado se um PR de manutenção o alterou depois do merge e até 30 dias depois. A taxa é o custo
+  desses arquivos ÷ custo de trabalho novo em interface, arquivo a arquivo (um arquivo compartilhado não marca o PR
+  inteiro). Só entram PRs mergeados pelo menos 30 dias antes do fim do período (os outros não têm a janela
+  completa). O custo da manutenção seguinte soma cada arquivo de cada PR de manutenção uma vez. Com menos de 30 PRs
+  de trabalho novo nessa janela a taxa não é publicada. Na base, `rework_share`; sem essa métrica no asset, o
+  relatório não mostra a comparação.
+- **Tendência**: custo mensal de interface dividido em trabalho novo e manutenção. A frase compara a fatia de
+  manutenção da primeira metade do período com a da segunda (com número ímpar de meses, o mês do meio fica fora);
+  diferença de até 3 p.p. (`TREND_STABLE_PP`) é "estável". Cada metade precisa de 30 PRs de interface; um mês com
+  menos de 30 aparece sem divisão.
+- **Plataformas** (`PLATFORMS`): pelo caminho (com o nome do repositório) e pela extensão de cada arquivo que
+  terminou em interface, por regra ou override: iOS (`.swift`, `.m`, `.xib`, `ios/`…), Android (`.kt`, `.java`,
+  `src/main/res/`, `android/`…), mobile multiplataforma (`.dart`, `mobile/`, `react-native/`, `expo/`), desktop
+  (`.qml`, `.xaml`, `desktop/`, `electron/`, `tauri/`), templates de servidor (`.erb`, `.blade.php`, `.cshtml`,
+  `.jsp`, `.heex`, `.njk`, `app/views/`…); o resto é web. Mostra custo e fatia de manutenção por plataforma; abaixo
+  de 3% do custo de interface a plataforma não aparece; fatia de manutenção só com 30 ou mais PRs de interface na
+  plataforma.

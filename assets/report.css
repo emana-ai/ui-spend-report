@@ -29,7 +29,6 @@ p{margin:8px 0}.strips,.cards,.steps{display:grid;gap:12px;margin:24px 0 12px}
 .card svg{height:45px}.card p,.steps p,.method>p{font-size:15px}.card strong{color:var(--text)}
 .steps{grid-template-columns:repeat(4,1fr);gap:0}.steps>div{background:var(--glass);position:relative}
 .steps>div+div:before{content:'→';position:absolute;left:-11px;top:50%;background:var(--glass);color:var(--text)}
-aside{margin-top:24px;border:1px solid var(--line-hi);background:var(--glass);padding:28px}aside a{color:var(--text);font:500 clamp(20px,2.2vw,32px)/1.15 var(--display);text-decoration-thickness:1px;text-underline-offset:5px}
 footer{padding:20px 0;color:var(--muted);font-size:13px}header .landing-wm{font-size:32px}
 @media(max-width:760px){.strips,.steps{grid-template-columns:1fr 1fr}.steps>div:before{content:none!important}.hero{padding:28px 0 14px;position:relative}.hero .eyebrow{padding-right:62px;min-height:40px}.ring{position:absolute;width:56px;right:0;top:12px}.stats{grid-template-columns:1fr 1fr;gap:14px}.stats small{font-family:inherit}.stats>div{padding-top:9px}.strip,.card,.steps>div{padding:12px}.strip h3,.steps h3{font-size:19px}.reference,.signals,.method{padding:28px 0}.cards{grid-template-columns:1fr}.card svg{float:right;width:30%;margin:0}.card p{clear:both;padding-top:8px}}
 @media print{@page{size:A4;margin:12mm;background:#050607}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-size:14px}main,header{padding-inline:12px}.hero,.stats{padding:18px;box-shadow:none}.hero h1{font-size:38px}.ring{width:100px;position:static}.stats{grid-template-columns:repeat(4,1fr)}.stats b{font-size:24px}.reference,.method,.signals{padding:18px 0}.strips,.steps{grid-template-columns:1fr 1fr}.cards{grid-template-columns:1fr 1fr}.card,.strip,.steps>div,aside{break-inside:avoid}.signals,.method{break-inside:avoid}h2{font-size:28px}}
@@ -44,18 +43,43 @@ footer{padding:20px 0;color:var(--muted);font-size:13px}header .landing-wm{font-
 
 html,section{background:var(--ink)}
 p{color:var(--dim)}
-.strip,.card,aside{border-radius:6px}
-.strip .client-value,.card:first-child strong{color:var(--calm-hi)}
-.card:first-child,aside{border-color:color-mix(in srgb,var(--calm) 48%,transparent)}
-.card:not(:first-child) svg{--calm:var(--dim)}
+.strip,.card,.block{border-radius:6px}
+.strip .client-value{color:var(--calm-hi)}
 .steps>div+div:before{background:var(--ink);color:var(--muted)}
-aside a{text-decoration-color:var(--calm)}
 @media print{html::before{content:"";position:fixed;inset:-12mm;background:var(--ink);z-index:-1}}
 @media print{
   .landing-lgp::before,.landing-lgp::after,.landing-lgp>i{mix-blend-mode:normal;filter:none}
 }
-.card .scope{display:block;margin:7px 0 12px;overflow-wrap:anywhere}.card .action{padding-top:10px;border-top:1px solid var(--line)}.action b{font-family:inherit;letter-spacing:normal}
-.card strong{display:block}
-@media screen and (max-width:760px){.card svg{float:none;width:100%;height:28px;margin:6px 0}.card p{padding-top:0}.card p.action{padding-top:8px}}
-@media print{.signals{padding:12px 0}.card svg{height:24px;margin:6px 0}.card .scope{margin:4px 0}.cards{margin-block:12px}.card p{margin:5px 0}.card p.action{padding-top:5px}aside{margin-top:8px;padding:14px}aside a{font-size:20px}}
-@media screen{.stats small,.card small{font:14px/1.5 var(--mono);color:var(--dim)}}
+@media screen{.stats small{font:14px/1.5 var(--mono);color:var(--dim)}}
+
+/* r7: diagnosis cards and blocks */
+.cards{grid-template-columns:1fr;gap:12px}
+.card{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:28px;padding:22px 24px}
+.card h3{font-size:24px;margin:8px 0 10px}.card p{font-size:16px;margin:0}
+.quanto{font:500 15px/1.4 var(--mono);letter-spacing:0;color:var(--calm-hi)}
+.limit{display:block;margin-top:12px;color:var(--muted);font-size:14px}
+.card dl{margin:0;display:grid;gap:10px}.card dl>div{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:start}
+.card dt{font:12px/1.6 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.card dd{margin:0;font-size:15px;color:var(--dim)}.card dd small{display:block;color:var(--muted)}
+.card svg.spark{display:block;width:100%;max-width:260px;height:38px;margin:0 0 2px}
+.blocks{padding:42px 0;border-bottom:1px solid var(--line)}
+.block{padding:22px 24px;border:1px solid var(--line-hi);background:var(--glass);margin-top:12px}
+.block .label{display:block;font:12px/1.5 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.block p{font-size:15px}.block .lead{font-size:18px;color:var(--text);margin:10px 0 14px}
+.block .lead b{font:500 34px/1 var(--display);color:var(--calm-hi);letter-spacing:-.04em}
+.hot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:36px}
+.lorenz{display:block;width:100%;max-width:360px;height:auto;margin-top:6px}.axis small{color:var(--muted)}
+.bars{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:12px}
+.bars li{display:grid;grid-template-columns:minmax(0,1fr);gap:4px}.bars span{font-size:15px;color:var(--text)}
+.bars i{display:block;height:8px;border-radius:2px;background:var(--calm)}
+.bars small{font:13px/1.4 var(--mono);color:var(--dim)}.bars small b{font:inherit;color:var(--calm-hi);letter-spacing:0}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stack{display:flex;gap:10px;align-items:stretch;height:150px;margin:6px 0 10px}
+.stack>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;position:relative;padding-bottom:22px}
+.stack span{display:block;width:100%}.stack .maint,.legend .maint{background:var(--calm)}
+.stack .new,.legend .new{background:#56636c}.stack .all{background:#56636c}
+.stack small{position:absolute;bottom:0;left:0;right:0;text-align:center;font:12px var(--mono);color:var(--muted)}
+.legend{color:var(--muted);font:12px var(--mono)}.legend i{display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px}
+.closing{margin:28px 0 0;font-size:15px}.closing a{color:var(--dim);text-decoration-color:var(--calm);text-underline-offset:4px}
+@media(max-width:760px){.card,.hot,.pair{grid-template-columns:1fr}.card dl>div{grid-template-columns:90px 1fr}}
+.bars.single i,.bars.single span{display:none}
