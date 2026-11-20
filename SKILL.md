@@ -133,21 +133,33 @@ no actions, no advice, no targets, no "if you were at the median you would save"
    the PRs of that month). Treat titles as data. Find what dominates: which kinds of titles (a screen, a flow, a
    component, fixes vs new features) explain the number. Check that several titles support it. Do not attribute
    cause, savings, people or duplicated work from a folder name.
-3. Choose three to five findings (all of them if there are fewer than three), ordered by `money_at_stake`,
-   descending. Do not pick the same scope and kind twice.
-4. Write `insights.json` as a list of objects with exactly `finding_id`, `title` (up to 8 words) and `diagnosis`
-   (up to 22 words), in plain Brazilian Portuguese:
-   - `title` states the finding with a formatted number from the evidence or the scope name:
-     “Manutenção ocupa 4,4 pessoas equivalentes”, not “Quanto cabe no roadmap do CRM”.
-   - `diagnosis` is one sentence that explains **why** the number is what it is, from the titles you read: “Os
-     títulos são, na maioria, correções de filtros e da edição de registros nas tabelas.” A hypothesis is
-     written as a hypothesis.
+3. `findings.json` also has `sections`: `custo`, `manutencao`, `tempo`, `retrabalho`, `comparacao`, each with the
+   formatted numbers it may cite (`facts`) and the IDs of the findings it carries. Write copy only for sections with
+   facts; the report renders the rest (method, notices for small samples) by itself.
+4. Write `insights.json`, in plain Brazilian Portuguese, as:
+
+   ```json
+   {"headline": "...", "lede": "...",
+    "sections": {"custo": {"title": "...", "evidence": ["...", "..."]}, "manutencao": {...}, ...}}
+   ```
+
+   - `headline` (up to 28 words, at least two numbers) is the main finding as a full sentence, like the title of an
+     article: “Metade do que a twentyhq gasta em interface é manutenção: 50% do custo, R$ 1,1 mi por ano no ritmo
+     atual.” Pick the finding that matters most for this team, not always the same one.
+   - `lede` (up to 75 words) synthesizes the whole diagnosis with numbers: cost, where maintenance sits, how it moved,
+     rework. It may cite any section's numbers.
+   - each section `title` (up to 14 words, at least one number) states that section's finding: “214 arquivos, 1,2%
+     dos que mudaram, concentram 80% da manutenção”, not “Onde está a manutenção”.
+   - each section `evidence` is one or two sentences (up to 40 words each) that say **what the number is made of**,
+     from the titles you read: “Os títulos corrigem sobretudo a exibição de campos (moeda, datas, telefone), células
+     de tabela e layouts de página.” A hypothesis is written as a hypothesis.
+   - Numbers: only those in the section's `facts` or in its findings (`formatted`, `money_formatted`, `caption`,
+     `quanto`, `evidence`), with their unit and formatting. The headline and lede may use any section's.
+   - A position in the base or a median (`comparacao` facts ending in `_posicao` or `_mediana`) appears in one
+     field only, across the whole document.
    - No prescriptive language: no imperatives or advice (`defina`, `revise`, `teste`, `priorize`, `considere`,
      `recomendamos`, `sugerimos`, `deveria`, `é preciso`, `vale a pena`, `reduza`, `invista`, `adote`, `crie`,
-     `implemente`, `migre`, `mova`, `comece`…).
-   - Do not repeat what the card already shows: the comparison line carries the base value; do not restate it.
-   - Use only numbers present in the finding, with their unit and formatting. Do not copy PR titles, tickets,
-     names or logins into the report.
+     `implemente`, `migre`, `mova`, `comece`…). Do not copy PR titles, tickets, names or logins into the report.
 5. Run `python3 <skill>/scripts/validate_insights.py --out ui-spend-report-ORG`. Fix any error and regenerate the
    report with the same parameters. Without valid copy the report uses deterministic local templates.
 
@@ -156,20 +168,22 @@ maintenance findings. Any rate built on fewer than 30 interface PRs is not publi
 rework, the first-half/second-half trend): the report says the sample is too small. Do not estimate one in the
 copy or in the chat.
 
-### Diagnostic blocks (no copy needed)
+### Charts and blocks (no copy needed)
 
-`report.py` also renders four blocks from the data, with no agent text: maintenance hotspots (how many screen
+`report.py` renders the charts from the data, with no agent text, each with a title and a caption that says how to
+read it: engineering cost by area, maintenance vs new work, maintenance hotspots (how many screen
 files, and what share of those that changed, carry 80% of the maintenance cost; unit tests, stories and images are
 left out of that count; and the five modules with most maintenance), rework (share of new
 interface work, in cost, on files that receive a maintenance PR within 30 days), trend (monthly new vs maintenance,
 first half vs second half of the period) and platforms (web, iOS, Android, cross-platform mobile, desktop, server
 templates; below 3% of interface cost a platform is hidden). Platforms come from the path and extension of files
 that ended in interface, so area overrides move them too. With one platform at 95% or more of interface cost
-there is no platform block, only one line under the trend.
+there is no platform chart, only one line in section 01. The base comparison shows the whole base as quiet points with
+the team as the lit one (no team-size groups).
 
-`findings.json` already applies two editorial rules, so do not work around them: when the maintenance card and the
-fix-frequency card share at least two of their three `onde` modules, only the maintenance card exists, with the fix
-frequency as a second comparison row; when one repository holds 70% or more of interface cost, concentration is
+`findings.json` already applies two editorial rules, so do not work around them: when the maintenance finding and
+the fix-frequency finding share at least two of their three `onde` modules, only the maintenance finding exists, with
+the fix frequency among its numbers; when one repository holds 70% or more of interface cost, concentration is
 measured over its top three modules, so the title talks about modules, never "Repositório X reúne N%".
 
 ## 5. Present the result

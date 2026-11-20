@@ -26,6 +26,11 @@ def month(m):
     return f"{MESES[int(mm) - 1]}/{y}"
 
 
+def span(ms):
+    a, b = month(ms[0]), month(ms[-1])
+    return a if a == b else (a[:3] if a[4:] == b[4:] else a) + " a " + b
+
+
 def companies(n):
     return f"{n} empresa" if n == 1 else f"{n} empresas"
 

@@ -6,7 +6,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-LIMITS = {"title": 8, "diagnosis": 22}
+LIMITS = {"headline": 28, "lede": 75, "title": 14, "evidence": 40}
 NUMBER = re.compile(r"(?<!\w)(?:(?:R\$|US\$|€|£)\s*)?[+−-]?\d+(?:[.,]\d+)*(?:%|\s+(?:mil|mi|p\.p\.))?(?!\w)")
 LOW = r"(?:baixa|reduzida|inferior|abaixo)"
 HIGH = r"(?:alta|elevada|superior|acima)"
@@ -23,62 +23,60 @@ def plain(text):
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
 
 
-def validate(doc, selection):
-    candidates = {f["id"]: f for f in doc["findings"]}
-    if not isinstance(selection, list) or not min(3, len(candidates)) <= len(selection) <= 5:
-        raise ValueError("Selecione de três a cinco evidências, ou todas se houver menos de três.")
-    previous = float("inf")
-    seen = set()
-    for card in selection:
-        if not isinstance(card, dict) or set(card) != {"finding_id", *LIMITS}:
-            raise ValueError("Campos de insight inválidos: use finding_id, title e diagnosis")
-        fid = card["finding_id"]
-        if not isinstance(fid, str) or fid not in candidates:
-            raise ValueError("finding_id desconhecido")
-        f = candidates[fid]
-        pair = (f["scope"], f["kind"])
-        if pair in seen or f["money_at_stake"] > previous:
-            raise ValueError("Escopo e tipo repetidos ou ordem monetária incorreta")
-        seen.add(pair)
-        previous = f["money_at_stake"]
-        allowed = set(NUMBER.findall(" ".join([*f["formatted"], *f.get("base_formatted", []), f["money_formatted"], f["caption"], f["quanto"]])))
-        for field, limit in LIMITS.items():
-            text = card[field]
-            if not isinstance(text, str) or not 1 <= len(text.split()) <= limit:
-                raise ValueError(f"{field}: limite de {limit} palavras")
-            if set(NUMBER.findall(text)) - allowed:
-                raise ValueError(f"{field}: número sem evidência vinculada")
-            word = PRESCRIPTION.search(plain(text))
-            if word:
-                raise ValueError(f"{field}: o relatório diagnostica, não recomenda («{word[0]}»)")
-            if field == "title" and not NUMBER.search(text):
-                names = f["scope"].strip("/").split("/")
-                if not any(
-                    re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.I)
-                    for name in names
-                    if name not in {"src", "packages", "lib", "apps", "main"}
-                ):
-                    raise ValueError("Título precisa de um número da evidência ou do nome do escopo")
-            if field == "title" and "/" in text and "p.p./mês" not in text:
-                raise ValueError("Título deve descrever o achado, sem caminhos")
-            median = doc["maintenance_median"]
-            if median is not None and doc["maintenance_share"] is not None:
-                if doc["maintenance_share"] == median:
-                    wrong = f"(?:{LOW}|{HIGH})"
-                else:
-                    wrong = LOW if doc["maintenance_share"] > median else HIGH
-                if re.search(
-                    rf"\bmanutenção\s+(?:(?:é|está|ficou|muito|mais|do|time|de|interface|foi|permanece)\s+)*{wrong}\b|\b{wrong}\s+manutenção\b",
-                    text,
-                    re.I,
-                ):
-                    raise ValueError("Qualificação de manutenção contradiz a mediana")
-        # A comparison with the base is stated once per card: the rendered line, or one agent field.
-        fields = [card["title"], card["diagnosis"], f.get("comparison", "")]
-        base = set(f.get("base_formatted", []))
-        if base and sum(bool(base & set(NUMBER.findall(text))) for text in fields) > 1:
-            raise ValueError("Comparação com a base repetida no mesmo cartão")
-    return selection
+def allowed(section, findings):
+    """Numbers a section's copy may cite: its facts and the rendered fields of its findings."""
+    texts = [*section["facts"].values(), *section.get("base", [])]
+    for fid in section["findings"]:
+        f = findings[fid]
+        texts += [*f["formatted"], f["money_formatted"], f["caption"], f["quanto"], f["evidence"]]
+    return set(NUMBER.findall(" ".join(texts)))
+
+
+def validate(doc, copy):
+    """copy = {"headline", "lede", "sections": {id: {"title", "evidence": [1–2 sentences]}}}, one entry per section
+    with facts. Every number comes from findings.json; no advice; a base comparison is stated once."""
+    sections = {s["id"]: s for s in doc["sections"] if s["facts"]}
+    if not isinstance(copy, dict) or set(copy) != {"headline", "lede", "sections"}:
+        raise ValueError("Campos de insight inválidos: use headline, lede e sections")
+    if not isinstance(copy["sections"], dict) or set(copy["sections"]) != set(sections):
+        raise ValueError("Seções esperadas: " + ", ".join(sections))
+    findings = {f["id"]: f for f in doc["findings"]}
+    per = {k: allowed(s, findings) for k, s in sections.items()}
+    everything = set().union(*per.values())
+    fields = [("headline", copy["headline"], everything), ("lede", copy["lede"], everything)]
+    for k, s in copy["sections"].items():
+        if not isinstance(s, dict) or set(s) != {"title", "evidence"} or not isinstance(s["evidence"], list) \
+                or not 1 <= len(s["evidence"]) <= 2:
+            raise ValueError(f"{k}: use title e evidence (uma ou duas frases)")
+        fields += [(k + ".title", s["title"], per[k])] + [(k + ".evidence", t, per[k]) for t in s["evidence"]]
+    plain_facts = set(NUMBER.findall(" ".join(v for s in sections.values() for v in s["facts"].values()
+                                              if v not in s.get("base", []))))
+    base = set(NUMBER.findall(" ".join(sections.get("comparacao", {}).get("base", [])))) - plain_facts
+    said = []
+    median, share = doc["maintenance_median"], doc["maintenance_share"]
+    for name, text, ok in fields:
+        kind = name.split(".")[-1]
+        if not isinstance(text, str) or not 1 <= len(text.split()) <= LIMITS[kind]:
+            raise ValueError(f"{name}: limite de {LIMITS[kind]} palavras")
+        numbers = set(NUMBER.findall(text))
+        if numbers - ok:
+            raise ValueError(f"{name}: número sem evidência vinculada ({', '.join(sorted(numbers - ok))})")
+        if kind == "headline" and len(NUMBER.findall(text)) < 2:
+            raise ValueError("headline: o achado principal com pelo menos dois números")
+        if kind == "title" and not numbers:
+            raise ValueError(f"{name}: título precisa de um número da evidência")
+        word = PRESCRIPTION.search(plain(text))
+        if word:
+            raise ValueError(f"{name}: o relatório diagnostica, não recomenda («{word[0]}»)")
+        if median is not None and share is not None:
+            wrong = f"(?:{LOW}|{HIGH})" if share == median else LOW if share > median else HIGH
+            if re.search(rf"\bmanutenção\s+(?:(?:é|está|ficou|muito|mais|do|time|de|interface|foi|permanece)\s+)*{wrong}\b"
+                         rf"|\b{wrong}\s+manutenção\b", text, re.I):
+                raise ValueError(f"{name}: qualificação de manutenção contradiz a mediana")
+        said += sorted(numbers & base)
+    if len(said) != len(set(said)):
+        raise ValueError("Comparação com a base repetida: cada posição ou mediana aparece uma vez")
+    return copy
 
 
 if __name__ == "__main__":

@@ -13,9 +13,12 @@ def sample():
     return dict(
         org="sample",
         by_month=months,
-        headline=dict(interface_share=0.2, interface_maintenance_share=0.5),
+        headline=dict(interface_share=0.2, interface_maintenance_share=0.5, interface_monthly_cost=20,
+                      interface_maintenance_annual_cost=120),
         counts=dict(developers=20, prs_scored=10),
-        interface=dict(cost=80, new_cost=40, maintenance_cost=40, native_cost=0),
+        interface=dict(cost=80, new_cost=40, maintenance_cost=40, native_cost=0, fte=2, prs=0, fix_prs=0),
+        cost=dict(team_monthly=100),
+        platforms=dict(shown=[], hidden_share=0),
         by_repo=[dict(repo="only", interface_cost=80)],
         top_dirs_by_area={},
     )
@@ -42,8 +45,9 @@ class Benchmark(unittest.TestCase):
         base = benchmark.aggregate(rows, {"product-0": "Colaboração"})
         self.assertEqual(len(base["points"]), 100)
         self.assertIn("Colaboração", [p["sector"] for p in base["points"]])
-        strip = report.strip([p["interface_share"] for p in base["points"]], 0.5)
-        self.assertEqual(strip.count("<circle "), 100)
+        row = dict(label="Esforço em interface", values=[p["interface_share"] for p in base["points"]], value=0.5, median=0.2)
+        self.assertEqual(report.field(row).count("<circle "), 100)  # one quiet point per company
+        self.assertEqual(report.field(row).count('class="pt on"'), 1)  # the team: the one lit point
 
     def test_missing_denominator(self):
         r = sample()
@@ -98,7 +102,6 @@ class Insights(unittest.TestCase):
         self.assertEqual(f["onde"], ["only · modules/record-table", "only · modules/settings", "only · ui"])
         self.assertEqual(f["evidence"], "40 PRs · 9 arquivos")
         self.assertNotIn("limit", f)
-        self.assertNotIn("Repositório", insights.fallback([f])[0]["title"])
         self.r["scopes"]["modules:only"]["prs"] = 12
         self.assertEqual(self.rows()["concentration"]["limit"], "Amostra pequena: 12 PRs · 9 arquivos.")
         self.r["scopes"]["modules:only"]["cost"] = 20  # the top modules carry 25% ≤ 30%: no card
@@ -135,8 +138,8 @@ class Insights(unittest.TestCase):
         self.assertEqual(rows["capacity"]["formatted"][-1], "70,0%")
         from validate_insights import validate
         doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
-        cards[0]["title"] = "Correções aparecem em 70,0% dos PRs"
+        cards = insights.fallback(doc)
+        cards["sections"]["custo"]["title"] = "Correções aparecem em 70,0% dos PRs"  # merged into the maintenance finding
         validate(doc, cards)
 
     def test_platform_evidence(self):
@@ -174,88 +177,95 @@ class Insights(unittest.TestCase):
         self.assertIn("native", self.rows())
         self.assertFalse({"new", "trend", "module", "annual_gap"} & set(self.rows()))
 
-    def test_validation(self):
-        from validate_insights import validate
-
+    def doc(self):
         self.r["interface"].update(native_cost=12)
         self.r["headline"]["interface_maintenance_share"] = 0.7
-        doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
-        self.assertEqual(validate(doc, cards), cards)
-        for field, value in [
-            ("diagnosis", "Gaste R$ 999 mil"),
-            ("title", "manutenção baixa"),
-            ("title", "palavra " * 9),
-            ("diagnosis", "palavra " * 23),
-            ("finding_id", "inexistente"),
-        ]:
-            changed = copy.deepcopy(cards)
-            changed[0][field] = value
-            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
-                validate(doc, changed)
-        for invalid in ([cards[0]] * 3, list(reversed(cards)), cards[:1]):
-            with self.assertRaises(ValueError):
-                validate(doc, invalid)
+        return report.evidence(self.r, self.base)
 
-    def test_no_action_field(self):
+    def test_fallback_is_valid(self):
         from validate_insights import validate
+        doc = self.doc()
+        copy_ = insights.fallback(doc)
+        self.assertEqual(set(copy_["sections"]), {s["id"] for s in doc["sections"] if s["facts"]})
+        self.assertEqual(validate(doc, copy_), copy_)
+        self.assertEqual(copy_["headline"], "A interface ficou com 20% do esforço de engenharia, e 70% desse custo "
+                                            "foi manutenção do que já existia.")
 
-        doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
-        self.assertTrue(all(set(c) == {"finding_id", "title", "diagnosis"} for c in cards))
-        self.assertFalse(any("action" in f for f in doc["findings"]))
-        with_action = copy.deepcopy(cards)
-        with_action[0]["action"] = ""
-        with self.assertRaisesRegex(ValueError, "Campos"):
-            validate(doc, with_action)
+    def test_validation(self):
+        from validate_insights import validate
+        doc = self.doc()
+        good = insights.fallback(doc)
+        for path, value, error in [
+            (("headline",), "A interface custou R$ 999 mil", "número sem evidência"),
+            (("headline",), "A interface ficou com 20% do esforço", "dois números"),
+            (("headline",), "20% e R$ 20 " + "palavra " * 27, "limite de 28"),
+            (("lede",), "palavra " * 76, "limite de 75"),
+            (("sections", "custo", "title"), "Manutenção baixa em sample", "título precisa de um número"),
+            (("sections", "custo", "title"), "Manutenção ocupa 2,0 " + "palavra " * 13, "limite de 14"),
+            (("sections", "custo", "title"), "A manutenção é baixa: 70%", "contradiz a mediana"),
+            (("sections", "custo", "evidence"), [], "uma ou duas frases"),
+            (("sections", "custo", "evidence"), ["a", "b", "c"], "uma ou duas frases"),
+            (("sections", "custo", "evidence"), ["palavra " * 41], "limite de 40"),
+            (("sections", "custo", "evidence"), ["Reduza R$ 20 por mês"], "não recomenda"),
+        ]:
+            changed = copy.deepcopy(good)
+            target = changed
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            with self.subTest(path=path, value=str(value)[:30]), self.assertRaisesRegex(ValueError, error):
+                validate(doc, changed)
+        for broken in ([good], dict(good, action=""), dict(good, sections={})):
+            with self.assertRaisesRegex(ValueError, "Campos|Seções"):
+                validate(doc, broken)
+        tempo = copy.deepcopy(good)
+        tempo["sections"]["custo"]["evidence"] = ["Em 2025-04 a interface custou R$ 35."]  # a number from another section
+        with self.assertRaisesRegex(ValueError, "custo.evidence: número sem evidência"):
+            validate(doc, tempo)
 
     def test_prescriptive_language(self):
         from validate_insights import validate
-
-        doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
+        doc = self.doc()
+        good = insights.fallback(doc)
         for text in ("Priorize testes de regressão nas telas", "Recomendamos separar os ajustes",
                      "É preciso olhar a fila de correções", "E PRECISO olhar a fila", "Vale a pena rever os filtros",
                      "O time deveria rever os filtros", "Considere reservar capacidade", "Revise primeiro os componentes",
                      "Defina um teto de manutenção", "Implemente testes nos filtros", "Comece pelos filtros"):
-            changed = copy.deepcopy(cards)
-            changed[0]["diagnosis"] = text
-            with self.subTest(text=text), self.assertRaisesRegex(ValueError, "não recomenda"):
-                validate(doc, changed)
+            for field in ("lede", "evidence"):
+                changed = copy.deepcopy(good)
+                if field == "lede":
+                    changed["lede"] = text
+                else:
+                    changed["sections"]["custo"]["evidence"] = [text]
+                with self.subTest(text=text, field=field), self.assertRaisesRegex(ValueError, "não recomenda"):
+                    validate(doc, changed)
         for text in ("Os títulos sugerem correções em testes de filtros", "Testes e definições de tela dominam os títulos"):
-            changed = copy.deepcopy(cards)
-            changed[0]["diagnosis"] = text
+            changed = copy.deepcopy(good)
+            changed["sections"]["custo"]["evidence"] = [text]
             validate(doc, changed)  # descriptive words that look like advice stay allowed
 
     def test_repeated_comparison(self):
         from validate_insights import validate
-
-        self.r["interface"]["fix_prs"] = 14
-        doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
-        f = next(f for f in doc["findings"] if f["kind"] == "fix_share")
-        self.assertEqual(f["base_formatted"], ["40,0%"])
-        card = next(c for c in cards if c["finding_id"] == f["id"])
-        card["title"] = "Correções aparecem em 70,0% dos PRs"
-        validate(doc, cards)
-        card["diagnosis"] = "Correções são 70,0% dos PRs, acima da base de 40,0%."
+        doc = self.doc()
+        good = insights.fallback(doc)
+        cmp_ = next(s for s in doc["sections"] if s["id"] == "comparacao")
+        self.assertIn("70,0%", cmp_["facts"].values())
+        median = cmp_["facts"]["interface_maintenance_share_mediana"]
+        self.assertEqual(median, "50,0%")
+        good["sections"]["comparacao"]["evidence"] = [f"A mediana da base é {median}."]
+        validate(doc, good)
+        good["lede"] += f" A mediana da base é {median}."
         with self.assertRaisesRegex(ValueError, "repetida"):
-            validate(doc, cards)
-        f.pop("comparison")  # without the rendered line, title and sentence still cannot both say it
-        card["title"] = "Correções: 70,0% contra 40,0%"
-        with self.assertRaisesRegex(ValueError, "repetida"):
-            validate(doc, cards)
+            validate(doc, good)
 
-    def test_title_evidence_and_scope(self):
-        from validate_insights import validate
-
-        doc = report.evidence(self.r, self.base)
-        cards = insights.fallback(doc["findings"])
-        cards[0]["title"] = "Quanto cabe no roadmap do CRM"
-        with self.assertRaisesRegex(ValueError, "Título"):
-            validate(doc, cards)
-        cards[0]["title"] = "Manutenção ocupa capacidade em sample"
-        validate(doc, cards)
+    def test_section_numbers_come_from_findings(self):
+        doc = self.doc()
+        secs = {s["id"]: s for s in doc["sections"]}
+        self.assertEqual([s["id"] for s in doc["sections"]], ["custo", "manutencao", "tempo", "retrabalho", "comparacao"])
+        kinds = {f["id"]: f["kind"] for f in doc["findings"]}
+        self.assertEqual({kinds[i] for i in secs["custo"]["findings"]}, {"capacity", "native"})
+        self.assertEqual(secs["custo"]["facts"]["fatia"], "20%")
+        self.assertEqual(secs["retrabalho"]["facts"], {})  # no rework in the sample: no copy for it
 
     def test_small_base_uses_counts(self):
         self.assertEqual(report.rank_text([0.1] * 8 + [0.5, 0.8], 0.5), "Acima de 8 de 10 empresas")
@@ -263,7 +273,7 @@ class Insights(unittest.TestCase):
         self.assertEqual(report.rank_text([0.1] * 15 + [0.5] * 15, 0.5), "Acima de 50% das empresas")
         self.assertEqual(report.rank_text([], None), "Sem comparação disponível")
 
-    def test_cohort_and_editorial_render(self):
+    def test_editorial_render(self):
         from test_ui_spend_report import MANIFEST, pr
 
         with patch.object(report.defaults, "MAINT_MIN_UI_PRS", 1):  # one PR: allow the maintenance rate
@@ -278,16 +288,44 @@ class Insights(unittest.TestCase):
         self.assertEqual((r["interface"]["prs"], r["interface"]["fix_prs"]), (1, 1))
         b = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
         doc = report.evidence(r, b)
-        cards = insights.fallback(doc["findings"])
-        cards[0]["title"] = "Decisão editorial em " + doc["findings"][0]["scope"].split("/")[0]
+        cards = insights.fallback(doc)
+        cards["sections"]["custo"]["title"] = "Decisão editorial: " + doc["sections"][0]["facts"]["fatia"]
         page = report.render(r, cards, b)
-        self.assertIn("Decisão editorial", page)
-        self.assertEqual(page, report.render(r, json.loads(json.dumps(cards)), b))
-        self.assertIn("Times ·", page)
-        b["points"].pop()
-        self.assertNotIn("Times ·", report.render(r, cards, b))
+        self.assertIn("Decisão editorial: <em>", page)
+        self.assertEqual(page, report.render(r, json.loads(json.dumps(cards)), b))  # deterministic
+        self.assertNotIn("Times ·", page)  # owner 19/11: no team-size strip, whole base only
+        self.assertNotIn("team_size", page)
         invalid = copy.deepcopy(cards)
-        invalid[0]["diagnosis"] = "Gaste 99999"
+        invalid["lede"] = "Gaste 99999"
         self.assertEqual(report.render(r, invalid, b), report.render(r, base=b))
+        self.assertEqual(report.render(r, [{"finding_id": "x"}], b), report.render(r, base=b))  # r7 format: fallback
         self.assertEqual(report.companies(1), "1 empresa")
         self.assertEqual(report.companies(2), "2 empresas")
+
+    def test_final_numbers_without_motion(self):
+        """No JS, reduced motion and print show the static HTML: it carries every final number; motion is gated."""
+        import re
+        from test_ui_spend_report import MANIFEST, pr
+
+        prs = {"app": [pr(i, "ana", f"2026-01-{i % 28 + 1:02d}T00:00:00Z", [[f"src/components/{i}.tsx", 5, 0]],
+                          title="fix: x" if i % 3 else "feat: y") for i in range(40)]}
+        r = report.analyse(MANIFEST, prs, {}, 1000, 160, "all")
+        page = report.render(r)
+        body = page[page.index("<body>"):]
+        for value in (report.pct(r["headline"]["interface_share"]), report.pct(r["headline"]["interface_maintenance_share"])):
+            number = value.rstrip("%")
+            self.assertIn(f'<span class="n">{number}</span><small>%</small>', body)
+        self.assertNotIn('class="motion"', page)  # added by script only
+        self.assertIn("prefers-reduced-motion: reduce", report.JS)
+        self.assertIn("beforeprint", report.JS)
+        self.assertIn("p=d.classList.contains('motion')?", report.JS)  # a count running at print time jumps to the end
+        css = report.CSS[report.CSS.index("/* r8"):]
+        hidden = re.findall(r"([^{}]*)\{[^{}]*(?:opacity:0|scaleX\(0\)|scaleY\(0\)|stroke-dashoffset:1)[^{}]*\}", css)
+        for selector in hidden:
+            if "keyframes" in selector or selector.strip().startswith(("from", "0%")) or "landing" in selector:
+                continue
+            for part in selector.split(","):
+                self.assertTrue(part.strip().startswith("html.motion"), part)  # initial states only under motion
+        printed = css[css.index("@media print"):]
+        self.assertIn("animation:none!important", printed)
+        self.assertIn("stroke-dashoffset:0!important", printed)

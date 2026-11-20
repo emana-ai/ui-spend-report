@@ -131,24 +131,33 @@ O HTML usa a data da coleta, não a data de hoje. Mesmo cache + mesmos parâmetr
 
 ## Base de referência e prioridades
 
-A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam interpolação linear entre observações ordenadas. A posição do time é a fração de empresas com valor estritamente menor, tanto na base inteira quanto no grupo de porte (até 19, 20–49 ou 50+ pessoas com PR pontuado). Empates ficam fora do numerador. Sem custo de interface, a taxa de manutenção é indefinida.
+A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam interpolação linear entre observações ordenadas. A posição do time é a fração de empresas com valor estritamente menor, na base inteira (não há recorte por porte de time). Empates ficam fora do numerador. Sem custo de interface, a taxa de manutenção é indefinida.
 
-Um grupo por porte aparece apenas com oito ou mais empresas com denominador válido. Sem esse tamanho de amostra, o gráfico mostra apenas a base completa.
+A seção "Como vocês se comparam" mostra, para esforço em interface, manutenção, retrabalho em 30 dias e frequência de correções, cada empresa da base como um ponto e o time como o ponto aceso, com a mediana marcada. Uma métrica aparece só com quatro ou mais empresas com valor (`BENCH_MIN`) e com o valor do time publicado.
 
 `report.py --findings` grava todas as evidências antes da seleção editorial. A ordem usa dinheiro no período
 observado. Os valores dos cartões podem se sobrepor.
 
-O relatório diagnostica e não prescreve: os cartões não têm ação, e nenhuma comparação com a base vira economia ou
+O relatório diagnostica e não prescreve: os textos não têm ação, e nenhuma comparação com a base vira economia ou
 meta (não há cenário "se a manutenção estivesse na mediana"). A posição na base aparece como posição ("acima de 81%
 das empresas"), com a mediana.
 
-Cada cartão mostra, calculado dos dados: **quanto** (custo no período, ou no mês para o pico, e pessoas
+O relatório é um artigo em seis seções numeradas (01 custo, 02 onde a manutenção se concentra, 03 tempo,
+04 retrabalho, 05 comparação com a base, 06 método). `findings.json` traz, por seção, os números formatados
+(`facts`) e os achados que ela carrega (capacidade, plataformas e nativo em 01; concentração e correções em 02; pico
+e tendência em 03). O agente escreve o título do relatório (`headline`, até 28 palavras, com pelo menos dois
+números), o parágrafo de abertura (`lede`, até 75 palavras) e, por seção com fatos, um título que afirma o achado
+(até 14 palavras, com um número) e uma ou duas frases de evidência (até 40 palavras cada). Todo número vem dos fatos
+da própria seção ou dos seus achados (título e abertura podem usar os de qualquer seção); cada posição na base ou
+mediana aparece em um campo só. Sem texto válido, modelos determinísticos escrevem os mesmos campos.
+
+Cada achado aparece na sua seção, calculado dos dados: **quanto** (custo no período, ou no mês para o pico, e pessoas
 equivalentes = custo ÷ meses ÷ custo mensal por pessoa), **onde** (os três módulos com mais custo no escopo do
 achado), **quando** (custo mensal do escopo; para a tendência de interface, a participação mensal), **comparação**
 (posição na base quando a métrica existe nela), **evidência** (PRs e arquivos de interface por trás do número) e
-**limite** (quando importa: manutenção identificada pelo título, amostra pequena, telas pareadas pelo nome). O
-agente escreve só o título e uma frase de diagnóstico. O validador recusa linguagem prescritiva (imperativos e
-conselhos, sem acento e por palavra inteira) e um cartão que repita a mesma comparação com a base em dois campos.
+**limite** (quando importa: manutenção identificada pelo título, amostra pequena, telas pareadas pelo nome). A
+comparação com a base fica toda na seção 05. O validador recusa linguagem prescritiva (imperativos e conselhos, sem
+acento e por palavra inteira) e a mesma comparação com a base repetida em dois campos.
 
 Um **módulo** é o diretório um nível abaixo da última pasta estrutural do caminho (`src`, `lib`, `app`, `apps`,
 `packages`, `modules`, `features`, `frontend`, `web`, `client`, `main`): `twenty/packages/twenty-front/src/modules/
@@ -176,15 +185,18 @@ Em caminhos explícitos de plataforma, um mesmo identificador de tela em `screen
 
 Calculados de cada arquivo de interface de cada PR pontuado (custo do arquivo = custo do PR × peso do arquivo).
 Nada fica escondido atrás de clique. Uma plataforma com 95% ou mais do custo de interface (`PLATFORM_SINGLE_SHARE`)
-não ganha bloco: uma linha sob a tendência diz "Toda a interface medida é web (100% do custo)." ("Quase toda" quando
+não ganha gráfico: uma linha na seção 01 diz "Toda a interface medida é web (100% do custo)." ("Quase toda" quando
 o valor arredondado fica abaixo de 100%).
 
 - **Pontos de manutenção**: custo de manutenção por arquivo de interface, do maior para o menor. A frase diz que
   quantos arquivos de tela, e que fração dos que mudaram no período, concentram 80% (`HOTSPOT_COST_SHARE`) do custo
   de manutenção. Arquivos de tela são os de interface menos testes unitários, stories (`.stories.`, `__stories__/`,
   `storybook/`: `HOTSPOT_NOT_SCREEN`) e imagens ou binários; eles seguem contando no custo de interface; a
-  curva mostra a fração acumulada do custo contra a fração de arquivos. Os cinco módulos com mais custo de
-  manutenção aparecem pelo nome, com custo, fatia da manutenção, PRs e arquivos. Nunca por pessoa.
+  curva mostra a fração acumulada do custo contra a fração de arquivos, com o eixo horizontal cortado na primeira
+  fração redonda (10%, 20%, 25%, 50% ou 100%) que seja ao menos quatro vezes a dos arquivos que concentram 80%; a
+  curva tem resolução de 0,1% dos arquivos. Os cinco módulos com mais custo de
+  manutenção aparecem pelo nome, como pontos de luz com tamanho proporcional ao custo, com custo, fatia da
+  manutenção, PRs e arquivos. Nunca por pessoa.
 - **Retrabalho em 30 dias** (`REWORK_DAYS`): para cada arquivo de interface de um PR de trabalho novo, o arquivo
   conta como retrabalhado se um PR de manutenção o alterou depois do merge e até 30 dias depois. A taxa é o custo
   desses arquivos ÷ custo de trabalho novo em interface, arquivo a arquivo (um arquivo compartilhado não marca o PR
@@ -203,3 +215,12 @@ o valor arredondado fica abaixo de 100%).
   `.jsp`, `.heex`, `.njk`, `app/views/`…); o resto é web. Mostra custo e fatia de manutenção por plataforma; abaixo
   de 3% do custo de interface a plataforma não aparece; fatia de manutenção só com 30 ou mais PRs de interface na
   plataforma.
+
+## Movimento
+
+O HTML final já contém todos os números e o estado final de cada gráfico. Um script inline (sem rede) liga o
+movimento só quando o navegador tem `IntersectionObserver` e não pede movimento reduzido: cada seção sobe ao entrar na
+tela, números contam até o valor exato (1,4 s, desaceleração cúbica), barras e colunas crescem, linhas se desenham, os
+pontos da base acendem em sequência e o ponto do time floresce; o fundo tem uma luz ambiente que deriva devagar e a
+marca no cabeçalho repete a animação da landing. Sem JavaScript, com `prefers-reduced-motion` e na impressão
+(`beforeprint` e `@media print`) a página fica no estado final, sem movimento.

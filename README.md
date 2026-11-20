@@ -10,7 +10,7 @@ produces a local, self-contained HTML report with four numbers:
 - how much of it is maintenance of screens that already exist;
 - what that maintenance costs per year.
 
-The Brazilian Portuguese report opens with four estimates, compares them with an anonymous open-source reference base, and then diagnoses where the money goes: findings ranked by observed cost (how much, where, when, compared with the base, on how many PRs and files), maintenance hotspots, rework within 30 days, the monthly trend of new work vs maintenance and the split by platform. It diagnoses; it does not prescribe actions. A visible diagram explains the allocation. Embedded fonts and inline charts work offline.
+The Brazilian Portuguese report reads as a short article: a headline that states the main finding, a lede, four estimates, then six numbered sections (what the interface costs, where maintenance concentrates, how it moves month to month, rework within 30 days, the team's position in an anonymous open-source reference base, and the method with a visible diagram). Each chart has a title and a caption. It diagnoses; it does not prescribe actions. Embedded fonts, inline charts and motion work offline; without JavaScript, with reduced motion or in print the page shows its final state.
 
 ## Privacy
 
@@ -46,7 +46,7 @@ request has them, otherwise from its title. With fewer than 30 interface pull re
 does not publish a maintenance rate (nor any other rate built on fewer than 30 interface pull requests). Numbers come from deterministic scripts: the same inputs give
 the same report.
 
-With the same run parameters, add `--findings` to export the evidence before drafting `insights.json`. Validate the copy with `python3 scripts/validate_insights.py --out DIR` and rerun the report. The HTML uses deterministic templates when editorial copy is absent or invalid.
+With the same run parameters, add `--findings` to export the evidence before drafting `insights.json` (headline, lede and, per section, a title and one or two evidence sentences). Validate the copy with `python3 scripts/validate_insights.py --out DIR` and rerun the report. The HTML uses deterministic templates when editorial copy is absent or invalid.
 
 Refresh the reference base from one aggregate JSON per software company:
 

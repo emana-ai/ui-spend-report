@@ -181,7 +181,7 @@ class Round7(unittest.TestCase):
         self.assertEqual((h["files"], h["top_files"], h["maintenance_files"]), (10, 1, 3))
         self.assertAlmostEqual(h["top_file_share"], 0.1)
         self.assertAlmostEqual(h["top_maintenance_share"], 0.8)  # one file of ten carries 80%
-        self.assertEqual((h["curve"][0], h["curve"][10], h["curve"][-1]), (0, 0.8, 1))
+        self.assertEqual((h["curve"][0], h["curve"][100], h["curve"][-1]), (0, 0.8, 1))
         self.assertEqual([m["path"] for m in h["modules"]], ["app/src/modules/a", "app/src/modules/b"])
         self.assertEqual((h["modules"][1]["share"], h["modules"][1]["prs"], h["modules"][1]["files"]), (0.2, 2, 2))
         self.assertEqual(report.module("n8n", "packages/frontend/editor-ui/src/features/ai/chat/X.vue"),
@@ -271,11 +271,11 @@ class Round7(unittest.TestCase):
         self.assertGreater(r["rework"]["share"], 0)
         base = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
         self.assertEqual(base["percentiles"]["rework_share"]["p50"], round(r["rework"]["share"], 6))
-        self.assertIn("Posição na base", report.render(r, base=base))
+        self.assertIn("Retrabalho em 30 dias</span>", report.render(r, base=base))
         asset = __import__("json").loads(benchmark.ASSET.read_text(encoding="utf-8"))
         self.assertIn("rework_share", asset["percentiles"])  # Hermes rebuilt the 95-org base with rework (r7b)
         self.assertGreater(asset["percentiles"]["rework_share"]["p50"], 0)
-        self.assertIn("Posição na base", report.render(r, base=asset))
+        self.assertIn("Retrabalho em 30 dias</span>", report.render(r, base=asset))
         old = dict(r)
         old.pop("rework")
         self.assertIsNone(benchmark.aggregate([old])["points"][0]["rework_share"])  # pre-r7 reports
@@ -286,12 +286,12 @@ class Round7(unittest.TestCase):
         r["platforms"] = report.platforms(recs, 400, True)
         page = report.render(r)
         self.assertIn('<p class="limit">Toda a interface medida é web (100% do custo).</p>', page)
-        self.assertNotIn("Plataformas</small>", page)
+        self.assertNotIn("Interface por plataforma", page)
         r["platforms"] = report.platforms(recs + [rec("ios/A.swift", 1, 8, True, 100, "ios")], 408, True)  # web 98%
         self.assertIn("Quase toda a interface medida é web (98% do custo).", report.render(r))
         r["platforms"] = report.platforms(recs + [rec("ios/A.swift", 1, 40, True, 100, "ios")], 440, True)  # web 91%
         page = report.render(r)
-        self.assertIn("Plataformas</small>", page)
+        self.assertIn("Interface por plataforma", page)
         self.assertNotIn("interface medida é", page)
 
 
@@ -308,9 +308,13 @@ class Round7b(unittest.TestCase):
         self.assertEqual(r["scopes"]["interface"]["files"], 6)  # tests, stories and images still cost interface
         self.assertEqual(r["hotspots"]["files"], 2)              # only A.tsx and A.module.scss are screen files
         page = report.render(r)
-        self.assertIn("<b>1 arquivo</b> (50,0% dos que mudaram) concentra 99% do custo de manutenção.", page)
+        self.assertIn("1 arquivo (50,0% dos que mudaram) concentra 99% do custo de manutenção.", page)
         self.assertIn("2 arquivos de interface mudaram no período, sem contar testes, stories e imagens.", page)
 
     def test_sentences_not_in_mono(self):
-        css = report.CSS[report.CSS.index("/* r7b"):]
-        self.assertIn(".limit,.block .limit,.axis small,.stats small{font:14px/1.45 'Hanken Grotesk'", css)
+        import re
+        css = report.CSS[report.CSS.index("/* r8"):]
+        mono = {sel.strip() for sel, _ in re.findall(r"([^{}]+)\{([^{}]*var\(--mono\)[^{}]*)\}", css)}
+        # Space Mono only on short labels and values: header label, section number, axis ticks, finding kind, step label.
+        self.assertEqual({m for m in mono if not m.startswith(":root")},
+                         {".bar>span", ".sec-n span", "svg text", ".find .k", ".steps small"})
