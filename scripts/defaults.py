@@ -55,11 +55,11 @@ EXCLUDE = [
     ("translation", r"((^|/)(?!(en|en-us|base)\.lproj/)[\w-]+\.lproj/|(^|/)_locales/(?!en(_us)?/)[\w-]+/|\.(xtb|mo)$)"),  # Apple, Chrome extensions, gettext/Chromium binaries
     ("translation", r"(^|/)res/values-(?!night|v\d|land|port|sw\d|w\d|h\d)[a-z]{2,3}(-r[a-z]{2})?(-[\w]+)?/(strings|plurals|arrays)[^/]*\.xml$|(^|/)res/values-b\+[\w+]+/"),  # Android
     ("translation", r"(^|/)(translations?|i18n|l10n|lang)/[^/]*_(?!en(_us)?\.ts$)[a-z]{2}(_[a-z]{2})?\.ts$"),  # Qt Linguist catalogs (XML, not TypeScript)
-    ("generated", r"((^|/)(__generated__|generated[\w-]*|[\w-]+-generated|codegen)/|\.generated\.|\.gen\.(ts|js|go)$|_pb2(_grpc)?\.pyi?$|\.pb(\.gw)?\.go$|\.g\.dart$|\.freezed\.dart$|(^|/)changelog(\.md)?$|(^|/)db/(schema\.rb|structure\.sql)$|(^|/)mocks/.*\.go$|_mock\.go$|(^|/)(package\.resolved|next-env\.d\.ts|skills-lock\.json|llms(-full)?\.txt|gradle-wrapper\.jar|mix-manifest\.json|sitemap[\w-]*\.xml)$|\.tsbuildinfo$|(^|/)schemas/[\w.]+/\d+\.json$)"),  # last: Room schemas
+    ("generated", r"((^|/)(__generated__|generated[\w-]*|[\w-]+-generated|codegen)/|\.generated\.|\.gen\.(ts|js|go)$|_pb2(_grpc)?\.pyi?$|\.pb(\.gw)?\.go$|\.g\.dart$|\.freezed\.dart$|(^|/)changelog(\.md)?$|(^|/)db/(schema\.rb|structure\.sql)$|(^|/)mocks/.*\.go$|_mock\.go$|(^|/)(package\.resolved|next-env\.d\.ts|skills-lock\.json|llms(-full)?\.txt|gradle-wrapper\.jar|mix-manifest\.json|sitemap[\w-]*\.xml)$|\.tsbuildinfo$|\.(s?css|sass|less)\.d\.ts$|(^|/)schemas/[\w.]+/\d+\.json$)"),  # last: Room schemas
 ]
 
 # Binary/image churn: the file counts (weight 1), its lines don't.
-_BIN_EXT = "png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|svg|pdf|woff2?|ttf|otf|eot|mp3|mp4|mov|webm|wav|ogg|zip|gz|tgz|jar|wasm|exe|dll|so|dylib|bin|lottie|riv|psd|sketch|fig|glyph"
+_BIN_EXT = "png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|svg|pdf|woff2?|ttf|otf|eot|mp3|mp4|mov|webm|wav|ogg|zip|gz|tgz|jar|wasm|exe|dll|so|dylib|bin|lottie|riv|psd|sketch|fig|glyph|glb"
 BINARY = r"(\.(" + _BIN_EXT + r")$|\.(glyphs|glyphspackage|ufo)(/|$))"  # font sources are design assets too
 
 # --- Area rules: (area, path regex, extension regex or None). First match wins.
@@ -139,10 +139,13 @@ PEAK_MIN_RATIO = 1.25
 # twenty/packages/twenty-front/src/modules/page-layout/widgets/x.tsx → …/modules/page-layout.
 MODULE_CONTAINERS = {"src", "lib", "app", "apps", "packages", "modules", "features", "frontend", "web", "client", "main"}
 HOTSPOT_TOP = 5
-HOTSPOT_COST_SHARE = 0.80     # "X% of interface files receive 80% of maintenance cost"
+HOTSPOT_COST_SHARE = 0.80     # "k files (X% of those that changed) carry 80% of maintenance cost"
+HOTSPOT_NOT_SCREEN = r"(\.stories\.|(^|/)(__stories__|\.?storybook)/)"  # with unit tests and images: not screen files
+SINGLE_REPO_SHARE = 0.70      # one repository with this share of interface cost: concentration by module inside it
 REWORK_DAYS = 30              # new interface work whose files get a maintenance PR within N days after merge
 TREND_STABLE_PP = 0.03        # first half vs second half within ±3 pp: "estável"
 PLATFORM_MIN_SHARE = 0.03     # platforms below this share of interface cost are hidden
+PLATFORM_SINGLE_SHARE = 0.95  # one platform with this share: one line under the trend, no platform block
 # Platform of an interface file, matched on "<repo>/<path>"; first match wins, otherwise web.
 PLATFORMS = [
     ("ios", r"\.(swift|m|mm|xib|storyboard|xcstrings)$|(^|/)([\w.-]*[-_.])?ios([-_.][\w.-]*)?/"),
@@ -154,6 +157,6 @@ PLATFORMS = [
 PLATFORM_LABELS = {"web": "Web", "ios": "iOS", "android": "Android", "mobile": "Mobile multiplataforma",
                    "desktop": "Desktop", "server": "Templates de servidor"}
 
-# Placeholder until the owner picks the final wording.
-CLOSING_TEXT = "Este relatório mostra onde o dinheiro vai. A emana.ai mostra onde a interface falha com as pessoas e muda a tela em produção."
+# Owner's wording (final).
+CLOSING_TEXT = "Você viu quanto custa manter a interface. A emana.ai mapeia o retorno desse esforço e entrega soluções que aumentam os retornos reduzindo os custos."
 CLOSING_URL = "https://emana.ai"

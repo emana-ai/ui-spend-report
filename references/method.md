@@ -31,7 +31,7 @@ Todos os parâmetros estão em `scripts/defaults.py`.
   relatório mostra no método quantos PRs saíram assim (`counts.prs_release_copy`, contado dentro de `prs_duplicate`).
 - **Arquivos** (`EXCLUDE`): lockfiles, código vendorizado (inclui `thirdparty/`, `3rdparty/`), saída de
   build/minificada, snapshots e gravações (`cassettes/`, `.har`, `__golden__/`), migrations, código gerado
-  (inclui `Package.resolved`, `next-env.d.ts`, `.tsbuildinfo`, `llms.txt`, sitemap, esquemas Room) e traduções
+  (inclui `Package.resolved`, `next-env.d.ts`, `.tsbuildinfo`, declarações de CSS modules `*.module.scss.d.ts`, `llms.txt`, sitemap, esquemas Room) e traduções
   para outros idiomas. Linhas e arquivo saem.
 - **Traduções**: pastas de idioma (`locale/`, `locales/`, `i18n/`, `lang/`, `languages/`, `localization/`…) com
   códigos de uma a três partes (`de`, `pt_BR`, `es-419`, `zh-Hans-CN`), idioma no nome do arquivo dentro dessas
@@ -155,8 +155,15 @@ Um **módulo** é o diretório um nível abaixo da última pasta estrutural do c
 page-layout/widgets/x.tsx` → `…/modules/page-layout`; `n8n/packages/frontend/editor-ui/src/features/ai/…` →
 `…/features/ai`.
 
-Capacidade equivalente divide custo mensal pelo custo mensal por pessoa. A concentração usa o repositório (ou,
-com um repositório só, a pasta) com maior custo de interface, acima de 30%.
+Capacidade equivalente divide custo mensal pelo custo mensal por pessoa. A concentração usa o repositório com maior
+custo de interface, acima de 30%. Quando um repositório tem 70% ou mais do custo de interface (`SINGLE_REPO_SHARE`;
+inclui o caso de um repositório só), a concentração é medida por módulo dentro dele: a fatia dos três módulos com
+mais custo de interface, nunca "o repositório X reúne N%".
+
+Quando os cartões de manutenção (capacidade) e de frequência de correção têm pelo menos dois dos três módulos de
+"onde" em comum, sai um cartão só: o de manutenção, com a frequência de correção e a posição na base como segunda
+linha de comparação ("Frequência de correções: 20,7% dos PRs · acima de 27% das empresas"). A regra está na seleção
+dos achados, não no agente.
 A tendência de interface usa regressão sobre a participação mensal de interface no custo do time, com custo
 positivo em todos os meses, inclinação mínima e qualidade de ajuste. O pico compara o mês mais caro com o custo
 mensal médio de interface.
@@ -168,10 +175,14 @@ Em caminhos explícitos de plataforma, um mesmo identificador de tela em `screen
 ## Blocos de diagnóstico
 
 Calculados de cada arquivo de interface de cada PR pontuado (custo do arquivo = custo do PR × peso do arquivo).
-Nada fica escondido atrás de clique.
+Nada fica escondido atrás de clique. Uma plataforma com 95% ou mais do custo de interface (`PLATFORM_SINGLE_SHARE`)
+não ganha bloco: uma linha sob a tendência diz "Toda a interface medida é web (100% do custo)." ("Quase toda" quando
+o valor arredondado fica abaixo de 100%).
 
 - **Pontos de manutenção**: custo de manutenção por arquivo de interface, do maior para o menor. A frase diz que
-  fração dos arquivos de interface tocados no período recebe 80% (`HOTSPOT_COST_SHARE`) do custo de manutenção; a
+  quantos arquivos de tela, e que fração dos que mudaram no período, concentram 80% (`HOTSPOT_COST_SHARE`) do custo
+  de manutenção. Arquivos de tela são os de interface menos testes unitários, stories (`.stories.`, `__stories__/`,
+  `storybook/`: `HOTSPOT_NOT_SCREEN`) e imagens ou binários; eles seguem contando no custo de interface; a
   curva mostra a fração acumulada do custo contra a fração de arquivos. Os cinco módulos com mais custo de
   manutenção aparecem pelo nome, com custo, fatia da manutenção, PRs e arquivos. Nunca por pessoa.
 - **Retrabalho em 30 dias** (`REWORK_DAYS`): para cada arquivo de interface de um PR de trabalho novo, o arquivo

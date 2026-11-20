@@ -63,13 +63,16 @@ def findings(r, base):
     title_based = counts.get("prs_typed_label", 0) < 0.5 * counts.get("prs_scored", 0)
     title_limit = "Manutenção identificada pelo título dos PRs: refatoração sem palavra de correção conta como trabalho novo."
 
-    def position(metric, value, wording):
+    def rank(metric, value):
         values = sorted(p[metric] for p in base["points"] if p.get(metric) is not None)
+        text = rank_text(values, value)
+        return text[0].lower() + text[1:] if len(values) >= D.BENCH_MIN else None
+
+    def position(metric, value, wording):
         median = base["percentiles"].get(metric, {}).get("p50")
-        if median is None or len(values) < D.BENCH_MIN:
+        if median is None or not rank(metric, value):
             return {}
-        rank = rank_text(values, value)
-        return dict(comparison=f"{wording}: {rank[0].lower() + rank[1:]} (mediana {pct(median, 1)})",
+        return dict(comparison=f"{wording}: {rank(metric, value)} (mediana {pct(median, 1)})",
                     base_formatted=[pct(median, 1)])
 
     def add(kind, stake, scope, numbers, formatted, caption, key, span=None, extra=None):
@@ -115,17 +118,16 @@ def findings(r, base):
         )
 
     repos = [("repo:" + x["repo"], x["repo"], x["interface_cost"]) for x in r["by_repo"] if x["interface_cost"]]
-    places = (
-        repos
-        if len(repos) > 1
-        else [("dir:" + x["path"], x["path"].rstrip("/"), x["cost"]) for x in r["top_dirs_by_area"].get("interface", [])]
-    )
-    if len(places) >= 2:
-        key, place, amount = max(places, key=lambda x: x[2])
-        if amount / total > D.CONCENTRATION_MIN:
+    if repos:
+        key, place, amount = max(repos, key=lambda x: x[2])
+        modules = scopes.get("modules:" + place)
+        if modules:  # one repository holds most of the interface: its top modules, never "repository X"
+            key, amount = "modules:" + place, modules["cost"]
+        if (modules or len(repos) > 1) and amount / total > D.CONCENTRATION_MIN:
             value = pct(amount / total, 1)
+            where = f" em {len(modules['top'])} módulos de {place}" if modules else ""
             add("concentration", amount, place, dict(interface_share=amount / total), [value],
-                f"{value} do investimento em interface", key)
+                f"{value} do investimento em interface{where}", key)
 
     for name, costs in r.get("surfaces", {}).items():
         ordered = sorted(costs, key=lambda p: (-costs[p], p))
@@ -196,7 +198,8 @@ def findings(r, base):
                 formatted,
                 f"{formatted[0]} dos PRs de interface indicam correção ({formatted[1]} de {formatted[2]})",
                 "fix",
-                extra=dict(comparison, limit="Correção = fix ou bug no título ou rótulo; o dado não mede a gravidade."),
+                extra=dict(comparison, limit="Correção = fix ou bug no título ou rótulo; o dado não mede a gravidade.",
+                           comparison_fix=f"Frequência de correções: {formatted[0]} dos PRs · {rank('fix_share', share)}"),
             )
 
     native = ui["native_cost"]
@@ -204,6 +207,17 @@ def findings(r, base):
         value = pct(native / total, 1)
         add("native", native, org, dict(native_share=native / total), [value], f"{value} do custo em interface nativa",
             "native")
+    # Maintenance time and fix frequency on the same modules: one card, the fix frequency as a comparison row.
+    kinds = {f["kind"]: f for f in rows}
+    cap, fix = kinds.get("capacity"), kinds.get("fix_share")
+    if cap and fix and len(set(cap["onde"]) & set(fix["onde"])) >= 2:
+        rows.remove(fix)
+        cap["comparison_fix"] = fix["comparison_fix"]
+        cap["numbers"]["fix_share"] = fix["numbers"]["fix_share"]
+        cap["formatted"].append(fix["formatted"][0])
+    for f in rows:
+        if f["kind"] == "fix_share":
+            f.pop("comparison_fix")  # its own comparison line already says it
     return sorted(rows, key=lambda f: (-f["money_at_stake"], f["id"]))
 
 
@@ -214,8 +228,8 @@ COPY = {
         "Esse é o tempo integral equivalente gasto em ajustes e correções de telas que já existiam.",
     ),
     "concentration": (
-        "Um escopo reúne {value} do investimento",
-        "A maior parte das mudanças de tela do período passou por este escopo.",
+        "{value} do investimento em interface fica aqui",
+        "Essa fatia das mudanças de tela do período passou pelos módulos listados.",
     ),
     "platforms": (
         "Outras plataformas custaram {stake}",

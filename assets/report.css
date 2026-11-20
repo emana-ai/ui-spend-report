@@ -83,3 +83,6 @@ p{color:var(--dim)}
 .closing{margin:28px 0 0;font-size:15px}.closing a{color:var(--dim);text-decoration-color:var(--calm);text-underline-offset:4px}
 @media(max-width:760px){.card,.hot,.pair{grid-template-columns:1fr}.card dl>div{grid-template-columns:90px 1fr}}
 .bars.single i,.bars.single span{display:none}
+/* r7b: sentences in Hanken Grotesk; Space Mono only for short labels and numbers */
+.limit,.block .limit,.axis small,.stats small{font:14px/1.45 'Hanken Grotesk',sans-serif;color:var(--muted);letter-spacing:0}
+.block p.limit{margin:12px 0 0}

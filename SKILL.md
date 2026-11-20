@@ -158,12 +158,19 @@ copy or in the chat.
 
 ### Diagnostic blocks (no copy needed)
 
-`report.py` also renders four blocks from the data, with no agent text: maintenance hotspots (share of interface
-files that receive 80% of the maintenance cost, and the five modules with most maintenance), rework (share of new
+`report.py` also renders four blocks from the data, with no agent text: maintenance hotspots (how many screen
+files, and what share of those that changed, carry 80% of the maintenance cost; unit tests, stories and images are
+left out of that count; and the five modules with most maintenance), rework (share of new
 interface work, in cost, on files that receive a maintenance PR within 30 days), trend (monthly new vs maintenance,
 first half vs second half of the period) and platforms (web, iOS, Android, cross-platform mobile, desktop, server
 templates; below 3% of interface cost a platform is hidden). Platforms come from the path and extension of files
-that ended in interface, so area overrides move them too.
+that ended in interface, so area overrides move them too. With one platform at 95% or more of interface cost
+there is no platform block, only one line under the trend.
+
+`findings.json` already applies two editorial rules, so do not work around them: when the maintenance card and the
+fix-frequency card share at least two of their three `onde` modules, only the maintenance card exists, with the fix
+frequency as a second comparison row; when one repository holds 70% or more of interface cost, concentration is
+measured over its top three modules, so the title talks about modules, never "Repositório X reúne N%".
 
 ## 5. Present the result
 

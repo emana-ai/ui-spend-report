@@ -22,6 +22,7 @@ _BUG_LABEL = re.compile(defaults.BUG_LABEL, re.I)
 _FEATURE_LABEL = re.compile(defaults.FEATURE_LABEL, re.I)
 _ISSUE = re.compile(defaults.ISSUE_PREFIX, re.I)
 _NATIVE = (".swift", ".m", ".mm", ".kt", ".java", ".dart", ".qml", ".xib", ".storyboard", ".xcstrings")
+_NOT_SCREEN = re.compile(defaults.HOTSPOT_NOT_SCREEN + "|" + defaults.BINARY, re.I)
 _PLATFORMS = [(name, re.compile(rx, re.I)) for name, rx in defaults.PLATFORMS]
 
 
@@ -140,7 +141,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
             if a is None:
                 amb_lines += lines
             eff_lines += lines
-            files.append((a or "other", path, lines))
+            files.append((a or "other", path, lines, kind))
         pr["score"] = score(sum(f[2] for f in files), len(files))
         pr["files_eff"] = files
         if pr["score"] == 0:
@@ -167,7 +168,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         n_maint += maint
         n_typed += any(_BUG_LABEL.search(l) or _FEATURE_LABEL.search(l) for l in pr.get("labels", []))
         fix = maint and re.search(defaults.FIX_MARKER, " ".join([pr["title"], *pr.get("labels", [])]), re.I)
-        if any(area == "interface" for area, _, _ in pr["files_eff"]):
+        if any(f[0] == "interface" for f in pr["files_eff"]):
             interface_prs += 1
             fix_prs += bool(fix)
             mon_ui_prs[pr["month"]] += 1
@@ -177,7 +178,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         repo_prs[pr["repo"]] += 1
         mon_cost[pr["month"]] += pr["cost"]
         mon_prs[pr["month"]] += 1
-        for (a, path, _), w in zip(pr["files_eff"], weights):
+        for (a, path, _, kind), w in zip(pr["files_eff"], weights):
             c = pr["cost"] * w / wsum
             by_area[a] += c
             d = "/".join([pr["repo"]] + path.split("/")[:-1][:defaults.TOP_DIR_DEPTH])
@@ -196,9 +197,9 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                     surface_costs[surface[0]][surface[1]] += c
                     surface_scopes[surface[0]][surface[1]].add(d)
                 recs.append(dict(pr=(pr["repo"], pr["number"]), file=(pr["repo"], path), month=pr["month"], at=when(pr),
-                                 cost=c, maint=maint, fix=bool(fix), native=native, dir=d,
+                                 cost=c, maint=maint, fix=bool(fix), native=native,
                                  module=module(pr["repo"], path), platform=platform(pr["repo"], path),
-                                 surface=surface and surface[0]))
+                                 surface=surface and surface[0], screen=not kind and not _NOT_SCREEN.search(path)))
                 repo_ui[pr["repo"]] += c
                 mon_ui[pr["month"]] += c
                 if maint:
@@ -219,9 +220,12 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         scopes.setdefault("repo:" + x["file"][0], []).append(x)
         if x["surface"] in surface_costs and len(surface_costs[x["surface"]]) > 1:
             scopes.setdefault("surface:" + x["surface"], []).append(x)
-    top_ui = sorted(dir_cost["interface"], key=lambda d: (-dir_cost["interface"][d], d))[:defaults.TOP_DIRS]
-    for d in top_ui:
-        scopes["dir:" + d + "/"] = [x for x in recs if x["dir"] == d or x["dir"].startswith(d + "/")]
+    # One repository with most of the interface: its top modules are the concentration scope, not the repository.
+    lead = min(repo_ui, key=lambda k: (-repo_ui[k], k), default=None)
+    if lead and repo_ui[lead] >= defaults.SINGLE_REPO_SHARE * ui:
+        top = {m for m, _ in scope_stats(scopes["repo:" + lead], months)["top"]}
+        scopes["modules:" + lead] = [x for x in scopes["repo:" + lead] if x["module"] in top]
+    screens = [x for x in recs if x["screen"]]  # hotspots: screen files, no unit tests, stories or images
     until = datetime.strptime(manifest["until"], "%Y-%m-%d")
     return rounded({
         "org": manifest["org"], "collected_on": manifest["collected_on"],
@@ -268,7 +272,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                                  for d in sorted(dc, key=lambda d: (-dc[d], d))[:defaults.TOP_DIRS]]
                              for a, dc in sorted(dir_cost.items()) if a != "tooling"},
         "scopes": {k: scope_stats(v, months) for k, v in sorted(scopes.items())},
-        "hotspots": hotspots(recs) if measured and ui_m else None,
+        "hotspots": hotspots(screens) if measured and any(x["maint"] for x in screens) else None,
         "rework": rework(recs, until) if measured else None,
         "trend": trend(months, mon_ui, mon_ui_m, mon_ui_prs) if measured else None,
         "platforms": platforms(recs, ui, measured),
@@ -425,8 +429,10 @@ def blocks(r, base, M):
     hs = r["hotspots"]
     out.append('<div class="block hot"><div><small class="label">Pontos de manutenção</small>')
     if hs:
-        out.append(f'<p class="lead"><b>{pct(hs["top_file_share"], 1)}</b> dos arquivos de interface ({num(hs["top_files"])} '
-                   f'de {num(hs["files"])}) recebem {pct(hs["top_maintenance_share"])} do custo de manutenção.</p>')
+        out.append(f'<p class="lead"><b>{num(hs["top_files"])} {"arquivo" if hs["top_files"] == 1 else "arquivos"}</b> '
+                   f'({pct(hs["top_file_share"], 1)} dos que mudaram) {"concentra" if hs["top_files"] == 1 else "concentram"} {pct(hs["top_maintenance_share"])} do custo '
+                   f'de manutenção.</p><small class="limit">{num(hs["files"])} arquivos de interface mudaram no período, '
+                   'sem contar testes, stories e imagens.</small>')
         curve = " ".join(f"{4 + 192 * i / 100:.2f},{116 - 112 * v:.2f}" for i, v in enumerate(hs["curve"]))
         x = 4 + 192 * hs["top_file_share"]
         y = 116 - 112 * hs["top_maintenance_share"]
@@ -468,7 +474,15 @@ def blocks(r, base, M):
         out.append(f'<div><span style="height:{h - hm:.1f}%" class="{"new" if split else "all"}"></span>'
                    f'<span style="height:{hm:.1f}%" class="maint"></span><small>{month(m["month"])[:3]}</small></div>')
     out.append('</div><small class="legend"><i class="maint"></i> manutenção　<i class="new"></i> trabalho novo　·　'
-               f'pico {M(top)}</small></div>')
+               f'pico {M(top)}</small>')
+    pf = r["platforms"]
+    one = pf["shown"][0] if pf["shown"] and pf["shown"][0]["share"] >= defaults.PLATFORM_SINGLE_SHARE else None
+    if one:  # one platform: a line here instead of a platform block
+        name = defaults.PLATFORM_LABELS[one["platform"]]
+        name = name if one["platform"] in ("ios", "android") else name.lower()
+        out.append(f'<p class="limit">{"Toda" if pct(one["share"]) == "100%" else "Quase toda"} a interface medida é '
+                   f'{e(name)} ({pct(one["share"])} do custo).</p>')
+    out.append('</div>')
     # Rework: new work followed by maintenance on the same files.
     rw = r["rework"]
     out.append(f'<div class="block"><small class="label">Retrabalho em {defaults.REWORK_DAYS} dias</small>')
@@ -490,8 +504,9 @@ def blocks(r, base, M):
     else:
         out.append(f'<p class="lead">A manutenção não foi medida: {small}.</p>')
     out.append('</div></div>')
-    # Platforms.
-    pf = r["platforms"]
+    if one:
+        out.append('</section>')
+        return "".join(out)
     out.append('<div class="block plat"><small class="label">Plataformas</small>')
     shown = pf["shown"]
     if len(shown) == 1:
@@ -589,7 +604,8 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
             facts = [("Escopo", e(f["scope_label"]) if f["scope"] != r["org"] else ""),
                      ("Onde", "<br>".join(e(x) for x in f["onde"])),
                      ("Quando", spark(q["values"]) + f'<small>{e(q["labels"][0])} a {e(q["labels"][-1])}</small>' if q["values"] else ""),
-                     ("Comparação", e(f.get("comparison", ""))), ("Evidência", e(f["evidence"]))]
+                     ("Comparação", "<br>".join(e(f[k]) for k in ("comparison", "comparison_fix") if k in f)),
+                     ("Evidência", e(f["evidence"]))]
             limit = f'<small class="limit">{e(f["limit"])}</small>' if "limit" in f else ""
             out.append(f'<article class="card"><div><b class="quanto">{e(f["quanto"])}</b><h3>{e(card["title"])}</h3>'
                        f'<p>{e(card["diagnosis"])}</p>{limit}</div><dl>'

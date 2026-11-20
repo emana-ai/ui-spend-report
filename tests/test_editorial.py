@@ -88,21 +88,56 @@ class Insights(unittest.TestCase):
         self.assertNotIn("fix_share", self.rows())
 
     def test_single_repo_concentration(self):
-        self.assertNotIn("concentration", self.rows())
-        path = "only/packages/product/src/modules"
-        self.r["top_dirs_by_area"]["interface"] = [
-            dict(path=path + "/", cost=60),
-            dict(path="only/ui/", cost=20),
-        ]
-        self.r["scopes"] = {"dir:" + path + "/": dict(prs=40, files=9, by_month=[1, 2, 3, 4],
-                                                       top=[[path + "/record-table", 50]])}
+        self.assertNotIn("concentration", self.rows())  # one repository, no module scope: nothing to say
+        mods = ["only/src/modules/record-table", "only/src/modules/settings", "only/src/ui"]
+        self.r["scopes"] = {"modules:only": dict(cost=60, prs=40, files=9, by_month=[1, 2, 3, 4],
+                                                 top=[[m, 20] for m in mods])}
         f = self.rows()["concentration"]
-        self.assertEqual(f["scope_label"], "only · product/modules")
-        self.assertEqual(f["onde"], ["only · modules/record-table"])
+        self.assertEqual((f["scope"], f["money_at_stake"], f["formatted"]), ("only", 60, ["75,0%"]))
+        self.assertEqual(f["caption"], "75,0% do investimento em interface em 3 módulos de only")
+        self.assertEqual(f["onde"], ["only · modules/record-table", "only · modules/settings", "only · ui"])
         self.assertEqual(f["evidence"], "40 PRs · 9 arquivos")
         self.assertNotIn("limit", f)
-        self.r["scopes"][next(iter(self.r["scopes"]))]["prs"] = 12
+        self.assertNotIn("Repositório", insights.fallback([f])[0]["title"])
+        self.r["scopes"]["modules:only"]["prs"] = 12
         self.assertEqual(self.rows()["concentration"]["limit"], "Amostra pequena: 12 PRs · 9 arquivos.")
+        self.r["scopes"]["modules:only"]["cost"] = 20  # the top modules carry 25% ≤ 30%: no card
+        self.assertNotIn("concentration", self.rows())
+        self.r["scopes"] = {}
+        self.r["by_repo"] = [dict(repo="web", interface_cost=50), dict(repo="app", interface_cost=30)]
+        self.assertEqual(self.rows()["concentration"]["caption"], "62,5% do investimento em interface")  # < 70%: repository
+
+    def test_dominant_repo_module_scope(self):
+        from test_ui_spend_report import MANIFEST, pr
+        files = lambda big: [[f"src/modules/{m}/A.tsx", big, 0] for m in ("a", "b", "c", "d")]
+        prs = {"web": [pr(1, "ana", "2026-01-10T00:00:00Z", files(30))],
+               "app": [pr(2, "ana", "2026-01-10T00:00:00Z", [["src/components/B.tsx", 1, 0]])]}  # web ≈ 84%
+        r = report.analyse(MANIFEST, prs, {}, 1000, 160, "all")
+        self.assertEqual([m for m, _ in r["scopes"]["modules:web"]["top"]],
+                         ["web/src/modules/a", "web/src/modules/b", "web/src/modules/c"])
+        self.assertNotIn("modules:app", r["scopes"])
+        prs["app"][0]["files"] = [["src/components/B.tsx", 3000, 0]]  # no repository reaches 70%
+        self.assertFalse([k for k in report.analyse(MANIFEST, prs, {}, 1000, 160, "all")["scopes"] if k.startswith("modules:")])
+
+    def test_maintenance_and_fix_cards_merge(self):
+        self.r["interface"]["fix_prs"] = 14
+        same = dict(prs=40, files=9, by_month=[1, 2, 3, 4], top=[["sample/src/a", 3], ["sample/src/b", 2], ["sample/src/c", 1]])
+        other = dict(same, top=[["sample/src/a", 3], ["sample/src/x", 2], ["sample/src/y", 1]])
+        self.r["scopes"] = {"maintenance": same, "fix": other}  # one module in common: two cards
+        rows = self.rows()
+        self.assertIn("fix_share", rows)
+        self.assertNotIn("comparison_fix", rows["capacity"])
+        self.assertNotIn("comparison_fix", rows["fix_share"])
+        self.r["scopes"]["fix"] = dict(other, top=same["top"][:2] + [["sample/src/z", 1]])  # two in common: one card
+        rows = self.rows()
+        self.assertNotIn("fix_share", rows)
+        self.assertEqual(rows["capacity"]["comparison_fix"], "Frequência de correções: 70,0% dos PRs · acima de 8 de 8 empresas")
+        self.assertEqual(rows["capacity"]["formatted"][-1], "70,0%")
+        from validate_insights import validate
+        doc = report.evidence(self.r, self.base)
+        cards = insights.fallback(doc["findings"])
+        cards[0]["title"] = "Correções aparecem em 70,0% dos PRs"
+        validate(doc, cards)
 
     def test_platform_evidence(self):
         self.assertIsNone(insights.surface_key("app", "screens/billing/view.ts"))

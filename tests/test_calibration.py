@@ -254,8 +254,8 @@ class Round7(unittest.TestCase):
 
     def test_closing_constant(self):
         import defaults
-        self.assertEqual(defaults.CLOSING_TEXT, "Este relatório mostra onde o dinheiro vai. A emana.ai mostra onde a "
-                                                "interface falha com as pessoas e muda a tela em produção.")
+        self.assertEqual(defaults.CLOSING_TEXT, "Você viu quanto custa manter a interface. A emana.ai mapeia o retorno "
+                                                "desse esforço e entrega soluções que aumentam os retornos reduzindo os custos.")
         r = report.analyse(MANIFEST, sample([["src/components/A.tsx", 5, 0]]), {}, 1000, 160, "all")
         page = report.render(r)
         self.assertIn(f'<p class="closing"><a href="{defaults.CLOSING_URL}">{defaults.CLOSING_TEXT}</a></p>', page)
@@ -278,3 +278,38 @@ class Round7(unittest.TestCase):
         old = dict(r)
         old.pop("rework")
         self.assertIsNone(benchmark.aggregate([old])["points"][0]["rework_share"])  # pre-r7 reports
+
+    def test_single_platform_line(self):
+        recs = [rec(f"web/{i}.tsx", i, 10, i % 2 == 0, i) for i in range(40)]
+        r = report.analyse(MANIFEST, sample([["src/components/A.tsx", 5, 0]]), {}, 1000, 160, "all")
+        r["platforms"] = report.platforms(recs, 400, True)
+        page = report.render(r)
+        self.assertIn('<p class="limit">Toda a interface medida é web (100% do custo).</p>', page)
+        self.assertNotIn("Plataformas</small>", page)
+        r["platforms"] = report.platforms(recs + [rec("ios/A.swift", 1, 8, True, 100, "ios")], 408, True)  # web 98%
+        self.assertIn("Quase toda a interface medida é web (98% do custo).", report.render(r))
+        r["platforms"] = report.platforms(recs + [rec("ios/A.swift", 1, 40, True, 100, "ios")], 440, True)  # web 91%
+        page = report.render(r)
+        self.assertIn("Plataformas</small>", page)
+        self.assertNotIn("interface medida é", page)
+
+
+class Round7b(unittest.TestCase):
+    def test_hotspots_count_screen_files(self):
+        files = [["src/components/A.tsx", 100, 0], ["src/components/A.test.tsx", 10, 0],
+                 ["src/components/A.stories.tsx", 10, 0], ["src/__stories__/Gallery.tsx", 10, 0],
+                 ["src/assets/logo.png", 0, 0], ["src/components/A.module.scss", 1, 0],
+                 ["src/components/A.module.scss.d.ts", 10, 0]]
+        prs = {"app": [pr(i, "ana", "2026-01-10T00:00:00Z", files, title="fix: x") for i in range(30)]}
+        self.assertEqual(classify.exclusion("src/components/A.module.scss.d.ts"), "generated")
+        self.assertEqual(classify.file_exclusion("public/models/robot.glb", 0), "binary")
+        r = report.analyse(MANIFEST, prs, {}, 1000, 160, "all")
+        self.assertEqual(r["scopes"]["interface"]["files"], 6)  # tests, stories and images still cost interface
+        self.assertEqual(r["hotspots"]["files"], 2)              # only A.tsx and A.module.scss are screen files
+        page = report.render(r)
+        self.assertIn("<b>1 arquivo</b> (50,0% dos que mudaram) concentra 99% do custo de manutenção.", page)
+        self.assertIn("2 arquivos de interface mudaram no período, sem contar testes, stories e imagens.", page)
+
+    def test_sentences_not_in_mono(self):
+        css = report.CSS[report.CSS.index("/* r7b"):]
+        self.assertIn(".limit,.block .limit,.axis small,.stats small{font:14px/1.45 'Hanken Grotesk'", css)
