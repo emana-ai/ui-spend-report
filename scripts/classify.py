@@ -22,19 +22,41 @@ _BINARY = re.compile(defaults.BINARY, re.I)
 _RULES = [(a, re.compile(p, re.I), re.compile(e, re.I) if e else None) for a, p, e in defaults.AREAS]
 _BOT = re.compile(defaults.BOT_LOGIN, re.I)
 _DUP = re.compile(defaults.DUPLICATE_PR, re.I)
+_AUTO = re.compile(defaults.AUTOMATION_TITLE, re.I)
+_RELEASE = re.compile(defaults.RELEASE_TITLE, re.I)
+_RELEASE_COPY = re.compile(defaults.RELEASE_COPY, re.I)
 _INTEG = re.compile(defaults.INTEGRATION_TESTS, re.I)
 _UNIT_DIR = re.compile(defaults.UNIT_TEST_DIR, re.I)
 _UNIT_MARK = [re.compile(r) for r in defaults.UNIT_TEST_MARKERS]  # case set inside each regex
 
 
+def is_automation(pr):
+    """Translation syncs, dependency updates, merge-backs run from a human account."""
+    return bool(_AUTO.search(pr.get("title", "")))
+
+
 def is_bot(pr):
     login = pr.get("author")
-    return not login or pr.get("author_type") == "Bot" or bool(_BOT.search(login))
+    return not login or pr.get("author_type") == "Bot" or bool(_BOT.search(login)) or is_automation(pr)
 
 
-def is_duplicate(pr):
-    """Cherry-pick, backport or branch sync: repeats work counted in another PR."""
-    return bool(_DUP.search(pr["title"]))
+def release_copies(prs_by_repo):
+    """{(repo, number)} of version/release/merge PRs whose files other PRs of the repo already changed."""
+    out = set()
+    for repo, prs in prs_by_repo.items():
+        seen = Counter(f for pr in prs for f in {x[0] for x in pr["files"]})
+        for pr in prs:
+            title, files = pr["title"].strip(), {x[0] for x in pr["files"]}
+            if _RELEASE_COPY.search(title) or (
+                    _RELEASE.search(title) and len(files) >= defaults.RELEASE_MIN_FILES
+                    and sum(seen[f] > 1 for f in files) >= defaults.RELEASE_MIN_OVERLAP * len(files)):
+                out.add((repo, pr["number"]))
+    return out
+
+
+def is_duplicate(pr, repo=None, copies=()):
+    """Cherry-pick, backport, branch sync or release copy: repeats work counted in another PR."""
+    return bool(_DUP.search(pr["title"])) or (repo, pr.get("number")) in copies
 
 
 @lru_cache(maxsize=None)
@@ -75,6 +97,11 @@ class CodeIndex(defaultdict):
 
 
 def code_area(repo, path, overrides, index=None):
+    return _code_area(repo, path, overrides, index)[0]
+
+
+def _code_area(repo, path, overrides, index=None):
+    """(area, True when an override decided it)."""
     a = rule_area(path)
     if index is not None and a in (None, "backend") and path.endswith((".kt", ".java")):
         if any(not root or path.startswith(root + "/") for root in index.modules.get(repo, ())):
@@ -92,7 +119,7 @@ def code_area(repo, path, overrides, index=None):
             match = full.startswith(key)
         if match:
             matches.append((len(key), key, value["force"] if force else value))
-    return max(matches)[2] if matches else a
+    return (max(matches)[2], True) if matches else (a, False)
 
 
 @lru_cache(maxsize=None)
@@ -110,9 +137,10 @@ def tested_path(path):
 def code_index(prs_by_repo, overrides):
     """{(repo, dir): Counter(area → lines)} of non-test, non-docs code, every dir level: the fallback for unit tests."""
     idx = CodeIndex(prs_by_repo)
+    copies = release_copies(prs_by_repo)
     for repo, prs in sorted(prs_by_repo.items()):
         for pr in prs:
-            if is_bot(pr) or is_duplicate(pr):
+            if is_bot(pr) or is_duplicate(pr, repo, copies):
                 continue
             for path, add, dele in pr["files"]:
                 cat = file_exclusion(path, add + dele)
@@ -128,10 +156,13 @@ def code_index(prs_by_repo, overrides):
 def area_kind(repo, path, overrides, index=None):
     """(area, kind). kind: None (not a test), "integration", "unit", "unit_inferred" or
     "unit_unresolved" (no non-test code in the repo to infer from: stays in tests)."""
-    a = code_area(repo, path, overrides, index)
-    if a != "tests" or not defaults.UNIT_TESTS_FOLLOW_AREA:
+    a, overridden = _code_area(repo, path, overrides, index)
+    if not defaults.UNIT_TESTS_FOLLOW_AREA:
         return a, None
-    if rule_area(path) != "tests" or _INTEG.search(path):  # "tests" from overrides.json = an integration suite
+    if a != "tests":  # an override moved a unit test to another area: it still counts as a unit test
+        unit = overridden and a in AREAS and rule_area(path) == "tests" and not _INTEG.search(path)
+        return a, "unit" if unit else None
+    if overridden or _INTEG.search(path):  # "tests" from overrides.json = an integration suite
         return "tests", "integration"
     bare, pkg = tested_path(path)
     tries = [bare] if bare != path else []
@@ -176,10 +207,11 @@ def load_cache(out):
 
 def ambiguous(prs_by_repo, overrides, summary=None):
     index = code_index(prs_by_repo, overrides)
+    copies = release_copies(prs_by_repo)
     groups = defaultdict(lambda: {"files": 0, "lines": 0, "exts": defaultdict(int), "paths": Counter(), "titles": set()})
     for repo, prs in sorted(prs_by_repo.items()):
         for pr in prs:
-            if is_bot(pr) or is_duplicate(pr):
+            if is_bot(pr) or is_duplicate(pr, repo, copies):
                 continue
             for path, add, dele in pr["files"]:
                 cat = file_exclusion(path, add + dele)

@@ -53,7 +53,8 @@ def findings(r, base):
     months = r["by_month"]
     count = len(months)
     cur = r["params"]["currency"]
-    maint = ui["maintenance_cost"]
+    measured = r["headline"].get("interface_maintenance_share", 0) is not None  # small samples: no maintenance findings
+    maint = ui["maintenance_cost"] if measured else 0
     rate = maint / total
     org = r["org"]
 
@@ -93,7 +94,8 @@ def findings(r, base):
 
     median = base["percentiles"]["interface_maintenance_share"].get("p50")
     if (
-        median is not None
+        measured
+        and median is not None
         and sum(p["interface_maintenance_share"] is not None for p in base["points"]) >= D.BENCH_MIN
     ):
         expected = total * median
@@ -202,7 +204,7 @@ def findings(r, base):
         ("trend", "interface_maintenance_share", "interface_cost", maint, "na manutenção"),
         ("interface_trend", "interface_share", "cost", total, "na participação de interface"),
     )
-    for kind, metric, denominator, amount, subject in trends:
+    for kind, metric, denominator, amount, subject in trends[0 if measured else 1:]:
         if len(months) < D.TREND_MIN_MONTHS or not all(m[denominator] for m in months):
             continue
         values = [m[metric] for m in months]
@@ -227,7 +229,8 @@ def findings(r, base):
 
     fix_median = base["percentiles"].get("fix_share", {}).get("p50")
     if (
-        fix_median is not None
+        measured
+        and fix_median is not None
         and ui.get("prs", 0) >= D.FIX_MIN_PRS
         and sum(p.get("fix_share") is not None for p in base["points"]) >= D.BENCH_MIN
     ):
@@ -256,7 +259,7 @@ def findings(r, base):
                 )
                 rows.pop()  # Both denominators travel together through either editorial path.
     new = ui["new_cost"]
-    if new / total >= D.WORK_MIX_MIN:
+    if measured and new / total >= D.WORK_MIX_MIN:
         value = pct(new / total, 1)
         add(
             "new",

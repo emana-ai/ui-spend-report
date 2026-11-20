@@ -17,6 +17,10 @@ from validate_insights import validate
 
 _MAINT = re.compile(defaults.MAINTENANCE, re.I)
 _NEW = re.compile(defaults.NEW_WORK, re.I)
+_BUG_LABEL = re.compile(defaults.BUG_LABEL, re.I)
+_FEATURE_LABEL = re.compile(defaults.FEATURE_LABEL, re.I)
+_ISSUE = re.compile(defaults.ISSUE_PREFIX, re.I)
+_NATIVE = (".swift", ".m", ".mm", ".kt", ".java", ".dart", ".qml", ".xib", ".storyboard", ".xcstrings")
 
 
 
@@ -26,7 +30,14 @@ def score(lines, files):
 
 
 def is_maintenance(pr):
-    return not _NEW.search(pr["title"]) and bool(_MAINT.search(" ".join([pr["title"], *pr.get("labels", [])])))
+    """Bug label → maintenance; feature label → new work; otherwise the title without its issue-link prefix."""
+    labels = pr.get("labels", [])
+    if any(_BUG_LABEL.search(l) for l in labels):
+        return True
+    if any(_FEATURE_LABEL.search(l) for l in labels):
+        return False
+    title = _ISSUE.sub("", pr["title"])
+    return not _NEW.search(title) and bool(_MAINT.search(title))
 
 
 def team(prs, mode, members):
@@ -72,16 +83,19 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     months = manifest["months"]
     excluded, lines_total = Counter(), 0
     amb_lines = eff_lines = 0
-    n_merged = n_bot = n_dup = n_empty = 0
+    n_merged = n_bot = n_auto = n_dup = n_release = n_empty = 0
     human = []
+    copies = classify.release_copies(prs_by_repo)
     for repo in sorted(prs_by_repo):
         for pr in sorted(prs_by_repo[repo], key=lambda p: p["number"]):
             n_merged += 1
             if classify.is_bot(pr):
                 n_bot += 1
+                n_auto += classify.is_automation(pr)
                 continue
-            if classify.is_duplicate(pr):
+            if classify.is_duplicate(pr, repo, copies):
                 n_dup += 1
+                n_release += not classify.is_duplicate(pr)
                 continue
             human.append(dict(pr, repo=repo, month=pr["merged_at"][:7]))
     kept = team(human, authors, manifest.get("members", []))
@@ -150,9 +164,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
                 maint_area[a] += c
                 dir_m[a][d] += c
             if a == "interface":
-                if path.endswith((".swift", ".xib", ".storyboard", ".xcstrings")) or "/src/main/res/" in "/" + path or (
-                        path.endswith((".kt", ".java")) and any(not root or path.startswith(root + "/")
-                        for root in index.modules.get(pr["repo"], ()))):
+                if path.endswith(_NATIVE) or "/src/main/res/" in "/" + path:  # the area (rule or override) is decided
                     native_cost += c
                 if fix:
                     fix_cost += c
@@ -176,6 +188,7 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
     to_hours = hours / monthly_cost
     dirs = dir_m["interface"]
     leader = max(sorted(dirs), key=dirs.get) if dirs else None
+    measured = interface_prs >= defaults.MAINT_MIN_UI_PRS  # smaller samples: no maintenance rate
     return rounded({
         "org": manifest["org"], "collected_on": manifest["collected_on"],
         "period": {"since": manifest["since"], "until_exclusive": manifest["until"], "months": months},
@@ -184,10 +197,11 @@ def analyse(manifest, prs_by_repo, overrides, monthly_cost, hours, authors, curr
         "headline": {
             "interface_share": share(ui, total),
             "interface_monthly_cost": ui / n_m,
-            "interface_maintenance_share": share(ui_m, ui),
-            "interface_maintenance_annual_cost": ui_m / n_m * 12,
+            "interface_maintenance_share": share(ui_m, ui) if measured else None,
+            "interface_maintenance_annual_cost": ui_m / n_m * 12 if measured else None,
         },
-        "counts": {"prs_merged": n_merged, "prs_bot": n_bot, "prs_duplicate": n_dup, "prs_not_team": len(human) - len(kept),
+        "counts": {"prs_merged": n_merged, "prs_bot": n_bot, "prs_automation": n_auto, "prs_duplicate": n_dup,
+                   "prs_release_copy": n_release, "prs_not_team": len(human) - len(kept),
                    "prs_no_effective_change": n_empty, "prs_scored": len(scored), "prs_maintenance": n_maint,
                    "developers": len({p["author"] for p in scored}), "developer_months": dev_months,
                    "repos": len(manifest["repos"])},
@@ -312,16 +326,21 @@ def render(r, selection=None, base=None):
 stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
 <text x="60" y="64" text-anchor="middle" fill="currentColor" font-size="13">Interface</text></svg></div>
 <div class="stats">"""]
+    measured = h["interface_maintenance_share"] is not None
     for value, label in [(pct(share) if r["cost"]["team_total"] else "—", "do esforço em interface"), (M(h['interface_monthly_cost']), "por mês em interface"),
-                         (pct(h["interface_maintenance_share"]) if ui["cost"] else "—", "da interface em manutenção"), (M(h['interface_maintenance_annual_cost']), "por ano em manutenção, no ritmo atual")]:
+                         (pct(h["interface_maintenance_share"]) if measured and ui["cost"] else "—", "da interface em manutenção"),
+                         (M(h['interface_maintenance_annual_cost']) if measured else "—", "por ano em manutenção, no ritmo atual")]:
         out.append(f"<div><b>{value}</b><small>{label}</small></div>")
+    n = ui["prs"]
+    note = (f'<p class="note">A manutenção não foi medida: o período teve {n} {"PR" if n == 1 else "PRs"} de interface, '
+            f'e com menos de {defaults.MAINT_MIN_UI_PRS} a taxa muda muito de um PR para outro.</p>' if ui["cost"] and not measured else "")
     base = base or json.loads(benchmark.ASSET.read_text(encoding="utf-8"))
     points = base["points"]
     size = benchmark.bucket(c["developers"])
-    out.append(f"""</div><section class="reference"><div class="eyebrow">Referência de mercado</div>
+    out.append(f"""</div>{note}<section class="reference"><div class="eyebrow">Referência de mercado</div>
 <h2>Onde o time se situa</h2><p>{companies(len(points))} de software open source · {num(base['prs_scored'])} {'PR' if base['prs_scored']==1 else 'PRs'} com custo atribuído.</p><div class="strips">""")
     for metric, label in zip(benchmark.METRICS, ("Esforço em interface", "Manutenção da interface")):
-        valid = bool(ui["cost"] if metric == benchmark.METRICS[1] else r["cost"]["team_total"])
+        valid = bool(ui["cost"] and measured if metric == benchmark.METRICS[1] else r["cost"]["team_total"])
         value = h[metric] if valid else None
         display = pct(value, 1) if valid else "—"
         out.append(f'<div class="strip"><h3>{label}</h3><strong class="client-value">{display}</strong><small> no time</small>')
@@ -363,7 +382,8 @@ stroke-dasharray="{100*share:.4f} 100" transform="rotate(-90 60 60)"/>
 <div><small>02 · Peso do PR</small><h3>Score logarítmico</h3><p>log₂(1 + linhas) + 0,5 × log₂(1 + arquivos)</p></div>
 <div><small>03 · Rateio mensal</small><h3>{M(r['params']['monthly_cost'])} / pessoa</h3><p>Custo proporcional ao score dos PRs da pessoa. Meses sem PR passam ao próximo mês ativo.</p></div>
 <div><small>04 · Divisão por área</small><h3>{M(ui['cost'])} em interface</h3><p>Custo por linhas efetivas de cada área. Arquivo sem linhas recebe peso um.</p></div></div>
-<p>{'Testes unitários contam com o código que testam. ' if ln['tests']['unit_tests_follow_area'] else ''}Testes de integração têm área própria. Títulos e rótulos indicam manutenção.</p></section>
+<p>{'Testes unitários contam com o código que testam. ' if ln['tests']['unit_tests_follow_area'] else ''}Testes de integração têm área própria. Manutenção vem do rótulo do PR (bug ou funcionalidade) e, sem rótulo, de palavras de correção no título. Refatorações sem essas palavras contam como trabalho novo.</p>
+<p>Ficaram fora do custo {num(c['prs_bot'])} {'PR' if c['prs_bot']==1 else 'PRs'} de bots e automações (traduções, dependências) e {num(c['prs_duplicate'])} {'PR duplicado' if c['prs_duplicate']==1 else 'PRs duplicados'}, que repetem trabalho de outro PR. Desses, {num(c['prs_release_copy'])} {'é cópia' if c['prs_release_copy']==1 else 'são cópias'} de release ou merge com os mesmos arquivos de outros PRs.</p></section>
 <aside><a href="{e(defaults.CLOSING_URL)}">{e(defaults.CLOSING_TEXT)}</a></aside>
 <footer>Relatório gerado no seu ambiente. Nenhum dado saiu dele.</footer></main></body></html>""")
     return "\n".join(out)
@@ -396,8 +416,10 @@ def main():
             print(f"insights.json: {error}. Usando textos determinísticos.", file=sys.stderr)
     page.write_text(render(r,selection,base), encoding="utf-8")
     h = r["headline"]
-    print(f"{page}\n  interface: {pct(h['interface_share'])} do tempo · {money(h['interface_monthly_cost'], a.currency)}/mês · "
-          f"manutenção {pct(h['interface_maintenance_share'])} · {money(h['interface_maintenance_annual_cost'], a.currency)}/ano"
+    maint = (f"manutenção {pct(h['interface_maintenance_share'])} · {money(h['interface_maintenance_annual_cost'], a.currency)}/ano"
+             if h["interface_maintenance_share"] is not None else
+             f"manutenção não medida ({r['interface']['prs']} PRs de interface, mínimo {defaults.MAINT_MIN_UI_PRS})")
+    print(f"{page}\n  interface: {pct(h['interface_share'])} do tempo · {money(h['interface_monthly_cost'], a.currency)}/mês · {maint}"
           f"\n  ambíguo: {pct(r['lines']['ambiguous_share'], 1)} das linhas efetivas · PRs com score: {r['counts']['prs_scored']}")
 
 

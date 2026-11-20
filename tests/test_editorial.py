@@ -1,6 +1,7 @@
 import copy
 import json
 import unittest
+from unittest.mock import patch
 
 from test_ui_spend_report import report
 import benchmark
@@ -219,14 +220,15 @@ class Insights(unittest.TestCase):
     def test_cohort_and_editorial_render(self):
         from test_ui_spend_report import MANIFEST, pr
 
-        r = report.analyse(
-            MANIFEST,
-            {"app": [pr(1, "private", "2026-01-10T00:00:00Z", [["src/X.tsx", 5, 1]], title="fix: x")]},
-            {},
-            1000,
-            160,
-            "all",
-        )
+        with patch.object(report.defaults, "MAINT_MIN_UI_PRS", 1):  # one PR: allow the maintenance rate
+            r = report.analyse(
+                MANIFEST,
+                {"app": [pr(1, "private", "2026-01-10T00:00:00Z", [["src/X.tsx", 5, 1]], title="fix: x")]},
+                {},
+                1000,
+                160,
+                "all",
+            )
         self.assertEqual((r["interface"]["prs"], r["interface"]["fix_prs"]), (1, 1))
         b = benchmark.aggregate([dict(r, org=str(i)) for i in range(8)])
         doc = report.evidence(r, b)

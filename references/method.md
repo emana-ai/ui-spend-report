@@ -18,21 +18,47 @@ Todos os parâmetros estão em `scripts/defaults.py`.
 
 - **PRs de bots**: autor do tipo Bot ou login que casa com `BOT_LOGIN` (dependabot, renovate,
   github-actions, `[bot]`…). PR sem autor (conta apagada) também sai.
+- **Automação feita por conta humana** (`AUTOMATION_TITLE`): "New Crowdin updates", "Translations update",
+  "Sync Strings", "chore(deps): update…", "Update dependencies", "Automatic merge back…". Mesmo tratamento de
+  PR de bot; o JSON conta esses PRs em `counts.prs_automation`.
 - **PRs duplicados** (`DUPLICATE_PR`): cherry-picks, backports e sincronizações de branch
   ("sync main into epic", "Automated cherry pick of #123"). Repetem trabalho já contado no PR original.
-- **Arquivos** (`EXCLUDE`): lockfiles, código vendorizado, saída de build/minificada, snapshots,
-  migrations, código gerado e traduções para outros idiomas (o idioma-fonte `en` fica e conta como
-  interface). Linhas e arquivo saem.
+- **Cópias de release e merge** (`RELEASE_TITLE`): PR com título de versão, release, merge ou uplift ("v1.2.3",
+  "Release 2.57", "merge release-8.8", "uplift(beta): …") **e** com pelo menos `RELEASE_MIN_FILES` (3) arquivos, dos
+  quais pelo menos 80% (`RELEASE_MIN_OVERLAP`) também foram alterados por outro PR do mesmo repositório no período.
+  A condição de sobreposição mantém releases que trazem trabalho próprio. O prefixo "release-26.1: <título>"
+  (`RELEASE_COPY`) é sempre cópia. O rótulo `backport` não conta: em vários projetos ele marca o PR original. O
+  relatório mostra no método quantos PRs saíram assim (`counts.prs_release_copy`, contado dentro de `prs_duplicate`).
+- **Arquivos** (`EXCLUDE`): lockfiles, código vendorizado (inclui `thirdparty/`, `3rdparty/`), saída de
+  build/minificada, snapshots e gravações (`cassettes/`, `.har`, `__golden__/`), migrations, código gerado
+  (inclui `Package.resolved`, `next-env.d.ts`, `.tsbuildinfo`, `llms.txt`, sitemap, esquemas Room) e traduções
+  para outros idiomas. Linhas e arquivo saem.
+- **Traduções**: pastas de idioma (`locale/`, `locales/`, `i18n/`, `lang/`, `languages/`, `localization/`…) com
+  códigos de uma a três partes (`de`, `pt_BR`, `es-419`, `zh-Hans-CN`), idioma no nome do arquivo dentro dessas
+  pastas (`client.pt_BR.yml`, `app_zh.arb`), Apple `xx.lproj/`, Android `res/values-xx[-rYY]/strings*.xml` e
+  `values-b+…`, extensões Chrome `_locales/xx/`, `.xtb`, `.mo` e catálogos Qt `translations/*_xx.ts` (XML, não
+  TypeScript; reconhecidos pelo caminho e pelo código de idioma). Só o idioma-fonte fica e conta como interface:
+  `en`, `en-US`, `Base`, `source`. Variantes `en-GB`, `en_GB`, `en-AU`… são traduções. Se o idioma-fonte de um
+  projeto for `en-GB`, reverta com override. `.xcstrings` guarda todos os idiomas num arquivo e conta inteiro como
+  interface: é um limite do método.
 - **Binários e imagens** (`BINARY`): o arquivo conta (peso 1), as linhas não.
 - **Linhas efetivas** = adições + remoções dos arquivos que sobram.
 
 ## Áreas (`classify.py`)
 
-Regras de caminho/extensão em ordem (`AREAS`), a primeira que casa vence: `tests`, `docs`, `infra`,
+Regras de caminho/extensão em ordem (`AREAS`), a primeira que casa vence: `tests`, configuração de build e de
+ferramentas (sempre `infra`, em qualquer pasta: `pnpm-workspace.yaml`, `.gitattributes`, `renovate.json`,
+`Package.swift`, `*.xcconfig`, `*.pbxproj`, `composer.json`, `jest.config.*`, `vitest.config.*`, `fastlane/`,
+`buildSrc/`, `gradle/`…), `docs`, `infra`,
 `data`, servidores MCP, raízes de front-end (`webapp/`, `frontend/`, `*-front/`, `*-ui/`…), marcadores fortes de
 backend (`api/`, `server/`, `trpc/`, `*-server/`…), extensões de interface (`.tsx`, `.vue`, `.css`,
-`.erb`…), diretórios de interface (`components/`, `pages/`, `hooks/`, `stores/`, `i18n/`…),
-extensões de backend (`.go`, `.py`, `.rb`, `.java`, `.clj`…).
+`.erb`…, templates de servidor `.blade.php`, `.cshtml`, `.razor`, `.jsp`, `.gsp`, `.heex`, `.tmpl`, `.njk`,
+`.jinja`, `.mustache`, `.gjs`/`.gts` e UI desktop `.qml`, `.ui` do Qt, `.xaml`), diretórios de interface
+(`components/`, `pages/`, `hooks/`, `stores/`, `i18n/`…), código de view no servidor (`app/views|helpers|components|mailers/*.rb`,
+`resources/views/`, `*_web/live/`), extensões de backend (`.go`, `.py`, `.rb`, `.java`, `.clj`…).
+Colisões de nome de pasta: `charts/` com extensão de front-end é componente de gráfico (interface); sem ela,
+Helm (infra). `license*`, `notice*`, `authors*` e `codeowners*` só são docs sem extensão de código (`license.go`
+segue a linguagem). `.mustache` em pastas de gerador de SDK (`openapi`, `codegen`, `generator`, `sdk`) é infra.
 
 **Testes unitários contam com o código que testam** (`UNIT_TESTS_FOLLOW_AREA = True`). Um arquivo que
 as regras põem em `tests` é teste unitário, a menos que seja de integração/e2e (`INTEGRATION_TESTS`:
@@ -46,7 +72,9 @@ Se nada resolve, a área é inferida: a área dominante (em linhas) do código n
 no período no pacote do teste, subindo de diretório enquanto houver menos de `INFER_MIN_LINES` linhas de
 evidência. O JSON conta as linhas de teste por tipo (`lines.tests`: `unit`, `unit_inferred`,
 `integration`). A área `tests` do relatório se chama "Testes de integração"; um override `tests`
-marca uma suíte de integração. `False` volta ao comportamento antigo (todo teste em `tests`).
+marca uma suíte de integração, inclusive em caminhos que a regra já chama de teste (não há inferência de teste
+unitário depois de um override `tests`). Um `force` de outra área num teste unitário muda a área e o arquivo
+continua contado em `lines.tests.unit`. `False` volta ao comportamento antigo (todo teste em `tests`).
 
 O que nenhuma regra resolve vai para `ambiguous.json`, agrupado por diretório. O agente decide a
 área de cada grupo pelo caminho e pelos títulos de PR e grava `overrides.json`
@@ -59,9 +87,24 @@ Marcadores de módulo Android são identificados nos caminhos observados em todo
 - `score = log2(1 + linhas efetivas) + 0,5 × log2(1 + arquivos efetivos)`. PR com score 0
   (só lockfile, por exemplo) não recebe custo e não conta como atividade.
 - Fatia de cada área no PR = linhas efetivas da área / linhas efetivas do PR (arquivo com 0 linhas conta 1).
-- Manutenção: título ou rótulo casa com `MAINTENANCE`, exceto quando o título é tipado como trabalho
-  novo em conventional commits (`feat:`, `feat(x):`, `docs:`; regex `NEW_WORK`). A parte de interface desse PR é
-  "manutenção de interface"; o resto da interface é "interface nova".
+- Manutenção, em ordem:
+  1. Rótulos primeiro. Um rótulo de bug (`BUG_LABEL`: bug, type: bug, kind/bug, pr: bugfix, regression, defect,
+     hotfix, 🐛) marca manutenção. Um rótulo de funcionalidade (`FEATURE_LABEL`: feature, type: feature,
+     enhancement, ✨) marca trabalho novo. Bug vence se os dois aparecem.
+  2. Sem esses rótulos, decide o título. Primeiro sai o prefixo de issue (`ISSUE_PREFIX`: "Fix #123:",
+     "Fixes #123 -", "Fix part of #123:", "Closes #123:", "Resolve #123:"). "Fix #12: Add Nepali" é trabalho novo;
+     "Fix #12: Fix crash on save" é manutenção. O resto do título casa com `MAINTENANCE`, exceto quando é tipado
+     como trabalho novo em conventional commits (`feat:`, `feat(x):`, `docs:`; regex `NEW_WORK`).
+  A parte de interface desse PR é "manutenção de interface"; o resto da interface é "interface nova".
+  Refatorações e migrações sem palavra ou rótulo de correção contam como trabalho novo.
+- Cobertura de rótulos, medida nos caches das 100 organizações da base (PRs que não são de bot): 65 têm algum PR
+  com rótulo de bug ou de funcionalidade, 25 em mais de 10% dos PRs, 16 em mais de 25% e 6 em mais de 50% (mediana
+  0,2%). Na maioria das organizações o título continua decidindo.
+- Amostra mínima: com menos de `MAINT_MIN_UI_PRS` (30) PRs de interface pontuados, a taxa de manutenção não é
+  publicada. O JSON grava `null` em `interface_maintenance_share` e `interface_maintenance_annual_cost`, o HTML
+  mostra "—" e diz que a amostra é pequena, a base de referência ignora a organização nessa métrica, e nenhum
+  achado que depende da divisão manutenção/trabalho novo (capacidade, mediana, módulo, tendência de manutenção,
+  frequência de correção, trabalho novo) entra no relatório.
 - Custo: para cada pessoa e mês, o custo mensal é dividido entre os PRs mergeados por ela no mês,
   proporcional ao score. Mês sem PR carrega o custo para o próximo mês com PR dela. A pessoa é
   ativa do mês do primeiro ao mês do último PR no período.
@@ -69,6 +112,10 @@ Marcadores de módulo Android são identificados nos caminhos observados em todo
 - Quem conta como time (`--authors`): `all`, `members` (membros da organização visíveis ao token)
   ou `min-prs:K` (K ou mais PRs no período). Organizações open source precisam de `members` ou
   `min-prs` para que contribuições avulsas não virem "time".
+
+- Custo de interface nativa (cartão "interface nativa"): arquivos que terminaram em `interface`, por regra ou
+  override, com extensão nativa (`.swift`, `.m`, `.mm`, `.kt`, `.java`, `.dart`, `.qml`, `.xib`, `.storyboard`,
+  `.xcstrings`) ou em `src/main/res/`. Um `force` para fora da interface tira o arquivo do indicador.
 
 ## Os quatro números
 

@@ -39,9 +39,12 @@ Each merged pull request gets a score from the size of its effective change. Eac
 monthly cost is split across the pull requests they merged that month, weighted by score, so a
 week of work pushed at once counts as a week. Files are classified by path into interface,
 back-end, infrastructure, data, docs and integration tests. Unit tests count with the code they
-test. Lockfiles, generated code, translations, bots and duplicated pull requests (cherry-picks,
-backports) are excluded. Numbers come from deterministic scripts: the same inputs give the same
-report.
+test. Lockfiles, generated code, translations, bots, automation run from human accounts (translation
+syncs, dependency updates) and duplicated pull requests (cherry-picks, backports, release and merge
+copies of work already counted) are excluded. Maintenance comes from bug or feature labels when a pull
+request has them, otherwise from its title. With fewer than 30 interface pull requests the report
+does not publish a maintenance rate. Numbers come from deterministic scripts: the same inputs give
+the same report.
 
 With the same run parameters, add `--findings` to export the evidence before drafting `insights.json`. Validate the copy with `python3 scripts/validate_insights.py --out DIR` and rerun the report. The HTML uses deterministic templates when editorial copy is absent or invalid.
 

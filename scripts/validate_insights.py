@@ -59,7 +59,7 @@ def validate(doc, selection):
             if field == "title" and "/" in text and "p.p./mês" not in text:
                 raise ValueError("Título deve descrever o achado, sem caminhos")
             median = doc["maintenance_median"]
-            if median is not None:
+            if median is not None and doc["maintenance_share"] is not None:
                 if doc["maintenance_share"] == median:
                     wrong = f"(?:{LOW}|{HIGH})"
                 else:

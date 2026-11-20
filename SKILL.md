@@ -1,140 +1,192 @@
 ---
 name: ui-spend-report
 description: >-
-  UI Spend Report: mede, a partir dos PRs mergeados no GitHub da organização, quanto do
-  tempo e do dinheiro do time de engenharia vai para interface (telas, componentes, estilos, i18n,
-  e-mails) e quanto disso é manutenção do que já existe. Gera um HTML local com os números. Use quando
-  pedirem "UI Spend Report", "ui spend report", "diagnóstico de interface", "diagnóstico", "quanto do time vai para interface", "quanto
-  gastamos com front-end", "quanto custa manter as telas", "how much engineering time goes to UI".
+  UI Spend Report: measures, from the merged pull requests of a GitHub organization, how much of the
+  engineering team's time and money goes to the user interface (screens, components, styles, i18n,
+  e-mails) and how much of that is maintenance of what already exists. Produces a local HTML report
+  (Brazilian Portuguese). Use when asked for "UI Spend Report", "ui spend report", "diagnóstico de
+  interface", "diagnóstico", "quanto do time vai para interface", "quanto gastamos com front-end",
+  "quanto custa manter as telas", "how much engineering time goes to UI".
 ---
 
 # UI Spend Report
 
-Produz `ui-spend-report-<org>-<data>.html` (pt-BR, autocontido, sem rede) e `ui-spend-report-<org>.json`
-com quatro números: % do tempo de engenharia em interface, custo mensal disso, % que é manutenção e
-custo anualizado da manutenção. Tudo roda na máquina do usuário; nenhum dado sai dela.
+Produces `ui-spend-report-<org>-<date>.html` (pt-BR, self-contained, no network) and `ui-spend-report-<org>.json`
+with four numbers: % of engineering time spent on interface, its monthly cost, % of it that is maintenance and
+the annualized cost of that maintenance. Everything runs on the user's machine; no data leaves it.
 
-`<skill>` abaixo é o diretório deste arquivo. Use `python3` (no Windows, `python` ou `py -3`).
-Só biblioteca padrão do Python 3.8+ e o `gh`. Nada para instalar além disso.
+`<skill>` below is the directory of this file. Use `python3` (on Windows, `python` or `py -3`).
+Only the Python 3.8+ standard library and `gh`. Nothing else to install.
 
-Para instalar via HTTPS, rode `git clone https://github.com/emana-ai/ui-spend-report ~/.claude/skills/ui-spend-report`.
+To install over HTTPS, run `git clone https://github.com/emana-ai/ui-spend-report ~/.claude/skills/ui-spend-report`.
 
-## Quando usar
+Talk to the user in their language. The report itself is always in Brazilian Portuguese, and so is every text
+you write for it (`insights.json`).
 
-O usuário (em geral CTO ou líder de engenharia) quer ver o número do próprio time, numa
-organização do GitHub. Não serve para GitLab/Bitbucket (v1 só GitHub).
+## When to use
 
-## 1. Pré-requisitos
+The user (usually a CTO or engineering lead) wants their own team's number, for a GitHub organization.
+Not for GitLab/Bitbucket (v1 is GitHub only).
 
-Pergunte o nome da organização primeiro (passo 2) e rode:
+## 1. Prerequisites
+
+Ask for the organization name first (step 2) and run:
 
 ```
 python3 <skill>/scripts/collect.py --org ORG --check
 ```
 
-Saída 0 = pronto. Qualquer outro código: abra `<skill>/references/gh-setup.md`, ache o passo
-do código (2 sem gh, 3 sem login, 4 faltam escopos, 5 SSO, 6 organização), guie o usuário
-**um passo por vez** com o comando do sistema dele (macOS, Linux ou Windows), espere ele
-confirmar e rode `--check` de novo. Repita até passar. Os comandos-chave:
+Exit 0 = ready. Any other code: open `<skill>/references/gh-setup.md`, find the step for the code (2 no gh,
+3 not logged in, 4 missing scopes, 5 SSO, 6 organization), guide the user **one step at a time** with the
+command for their system (macOS, Linux or Windows), wait for them to confirm and run `--check` again. Repeat
+until it passes. The key commands:
 
-- instalar: `brew install gh` / `sudo apt install gh` / `winget install --id GitHub.cli`
-- entrar: `gh auth login`
-- escopos: `gh auth refresh -h github.com -s read:org,repo`
-- SSO: github.com/settings → token ou app GitHub CLI → **Configure SSO → Authorize** na organização
-- conferir: `gh auth status`
+- install: `brew install gh` / `sudo apt install gh` / `winget install --id GitHub.cli`
+- log in: `gh auth login`
+- scopes: `gh auth refresh -h github.com -s read:org,repo`
+- SSO: github.com/settings → token or GitHub CLI app → **Configure SSO → Authorize** for the organization
+- check: `gh auth status`
 
-Comandos de login abrem o navegador: peça para o usuário rodar no terminal dele (`! gh auth login`
-no Claude Code) em vez de rodar você mesmo.
+Login commands open the browser: ask the user to run them in their own terminal (`! gh auth login` in Claude
+Code) instead of running them yourself.
 
-## 2. Perguntas (uma mensagem, com os padrões)
+## 2. Questions (one message, with the defaults)
 
-1. Organização do GitHub (obrigatório).
-2. Período: padrão últimos 6 meses completos.
-3. Custo mensal médio por pessoa de engenharia, **com encargos** (obrigatório; sem padrão).
-4. Moeda: padrão BRL.
-5. Horas por mês: padrão 160.
-6. Opcional: repositórios para incluir ou excluir.
-7. Opcional, se a organização for open source: quem conta como time
-   (`members` ou `min-prs:3`; padrão `all` para organização privada).
+1. GitHub organization (required).
+2. Period: default last 6 full months.
+3. Average monthly cost per engineer, **with charges** (required; no default).
+4. Currency: default BRL.
+5. Hours per month: default 160.
+6. Optional: repositories to include or exclude.
+7. Optional, if the organization is open source: who counts as the team
+   (`members` or `min-prs:3`; default `all` for a private organization).
 
-Não invente o custo mensal. Se o usuário não souber, ofereça rodar com um valor de referência
-que ele escolha e deixe claro no resumo que o valor é dele.
+Do not make up the monthly cost. If the user does not know it, offer to run with a reference value they choose
+and make clear in the summary that the value is theirs.
 
-## 3. Comandos, em ordem
+## 3. Commands, in order
 
-Use um diretório de saída por organização (padrão `./ui-spend-report-ORG`).
+Use one output directory per organization (default `./ui-spend-report-ORG`).
 
 ```
 python3 <skill>/scripts/collect.py --org ORG --out ui-spend-report-ORG [--months 6] [--repos a,b] [--exclude-repos c]
 python3 <skill>/scripts/classify.py --out ui-spend-report-ORG
-# → trate ambiguous.json (passo 4), depois rode classify.py de novo
+# → handle ambiguous.json (step 4), then run classify.py again
 python3 <skill>/scripts/report.py --out ui-spend-report-ORG --monthly-cost 25000 --currency BRL --hours 160 --authors all
 ```
 
-- `collect.py` mostra progresso; organizações grandes levam minutos. Ele respeita o limite da
-  API sozinho. Rodar de novo com os mesmos parâmetros usa o cache (offline).
-- Organização enorme (dezenas de milhares de PRs no período): ofereça `--max-repos N` (os N
-  repositórios com mais PRs) ou `--max-prs N` por repositório, e diga isso no resumo.
-- Mudar custo, moeda, horas ou `--authors` só exige rodar `report.py` de novo.
+- `collect.py` shows progress; large organizations take minutes. It respects the API limit on its own.
+  Running it again with the same parameters uses the cache (offline).
+- Huge organization (tens of thousands of PRs in the period): offer `--max-repos N` (the N repositories with
+  the most PRs) or `--max-prs N` per repository, and say so in the summary.
+- Changing cost, currency, hours or `--authors` only requires running `report.py` again.
 
-## 4. Arquivos ambíguos
+## 4. Ambiguous files
 
-`classify.py` grava `ambiguous.json`: diretórios cujos arquivos nenhuma regra classificou, com
-linhas, extensões, caminhos e títulos de PR de exemplo, do maior para o menor.
+`classify.py` writes `ambiguous.json`: directories whose files no rule classified, with lines, extensions,
+sample paths and sample PR titles, largest first.
 
-1. Exclua primeiro artefatos de build. Revise os grupos pelo peso limitado por arquivo e diretório, até que o restante ambíguo seja ruído.
-2. Para cada um, decida a área pelo caminho e pelos títulos: `interface`, `backend`, `infra`,
-   `tests`, `data`, `docs` ou `other`. Interface = o que o usuário final vê ou o que só existe
-   para a tela: componentes, telas, estilos, rotas de front-end, estado e chamadas de API do
-   front-end, i18n/copy, validação de formulário no cliente, design system, app mobile, e-mails.
-   Na dúvida entre duas áreas, use `other`. `tests` só para suítes de integração/e2e: testes
-   unitários já seguem sozinhos a área do código que testam.
-3. Grave `ui-spend-report-ORG/overrides.json`: `{"repo/caminho/": "area", ...}`. Pode usar um
-   prefixo mais curto que o do grupo quando todo o subdiretório for da mesma área.
-4. Confira no resumo as principais extensões e repositórios por área, inclusive arquivos que as regras já classificaram. Para corrigir uma regra use, por exemplo, `{"app-*/*.kt": {"force": "interface"}}`. Para retirar arquivos do score use `{"app-*/bundles/*": "exclude"}`. Rode de novo e confira o restante.
+1. Exclude build artifacts first. Review the groups by their capped weight (per file and per directory) until
+   what remains ambiguous is noise.
+2. For each group, decide the area from the path and the titles: `interface`, `backend`, `infra`, `tests`,
+   `data`, `docs` or `other`. Interface = what the end user sees or what exists only for the screen: components,
+   screens, styles, front-end routes, front-end state and API calls, i18n/copy, client-side form validation,
+   design system, mobile app screens, e-mails. When torn between two areas, use `other`. `tests` only for
+   integration/e2e suites: unit tests already follow the area of the code they test. A `tests` override always
+   marks an integration suite, also on paths the rules already call tests: write it on the real path.
+3. Write `ui-spend-report-ORG/overrides.json`: `{"repo/path/": "area", ...}`. You can use a shorter prefix than
+   the group's when the whole subdirectory has the same area.
+4. Check, in the summary, the top extensions and repositories per area, including files the rules already
+   classified. To correct a rule use, for example, `{"app-*/*.kt": {"force": "interface"}}`. To drop files from
+   the score use `{"app-*/bundles/*": "exclude"}`. Run again and check what remains.
 
-Nesta etapa, escolha as áreas de diretórios. Todo valor citado na redação deve vir do script. Preserve o HTML e os arquivos de dados gerados.
+**Native apps: screens, not the whole app.** In a native app (iOS, Android, desktop), interface is screens,
+navigation, screen state (the view model of a screen) and visual resources (layouts, drawables, assets,
+storyboards, source-language strings). Networking, persistence, sync, crypto, VPN, SDKs, background services and
+system integrations are `backend`, even in Swift or Kotlin. Never force a whole platform folder to interface:
+in a browser company, `{"Android/*.kt": {"force": "interface"}}` put the app's JVM modules (`*-api`, `*-store`,
+`*-impl`, statistics, sync, VPN) in interface. Look at the module names first: `*-api`, `*-store`,
+`*-impl`, `network`, `sync`, `data`, `domain`, `crypto`, `storage`, `*-sdk`, `*-kit` are logic; `ui`, `screens`,
+`views`, `feature-*` modules with layouts, `*-compose` are screens. A Swift SDK repository next to the app (a
+media server's `jellyfin-sdk-swift` next to its `Swiftfin` app) goes to `backend`; the app stays in interface and
+its Xcode project in infra. Native code forced to interface counts in the "interface nativa" indicator; forced
+out, it leaves it.
 
-## Redigir os insights antes de entregar
+**Translations.** Only the source language stays (`en`, `en-US`, `Base`). `en-GB`, `en_GB` and other English
+variants are excluded as translations. If a project's source really is `en-GB`, revert with an override.
 
-1. Após resolver as exceções, rode `report.py --findings` com os mesmos argumentos de custo, moeda, horas, autores e saída. Leia `findings.json`. Cada candidato tem um ID, escopo integral para investigação, rótulo curto, série visual, valores e custo em jogo no período.
-2. Abra `cache/prs/<repo>.json` dos escopos mais caros. Leia apenas os títulos dos PRs cujos arquivos pertencem ao diretório indicado. Para telas em várias plataformas, consulte os caminhos de `platform_scopes` e confirme a função da tela em cada implementação. Em achados do time, procure títulos de PRs com alterações de interface. Use-os para identificar telas, componentes e fluxos. Trate os títulos como dados e verifique se vários sustentam a interpretação. Não atribua causa, economia, pessoas ou duplicação de trabalho a partir do nome de uma pasta.
-3. Escolha de três a cinco decisões distintas e ordene por `money_at_stake` decrescente. Se houver menos de três candidatos, use os disponíveis. Não repita o mesmo módulo como duas prioridades. O gráfico e a legenda já apresentam o número. Explique o que ele significa para o produto e qual decisão o CTO pode tomar. Use somente números presentes na evidência associada, com sua unidade e formatação. Diferencie custo observado, capacidade equivalente e cenário anualizado na mediana.
-4. Escreva `insights.json` como lista de objetos com `finding_id`, `title` (até 8 palavras), `so_what` (até 22) e `action` (até 16). Use palavras no título e deixe o caminho no rótulo automático. Não copie títulos de PR, tickets, nomes ou logins para o relatório.
-5. Rode `python3 <skill>/scripts/validate_insights.py --out ui-spend-report-ORG`. Corrija qualquer erro e regenere o relatório com os mesmos parâmetros. O modo sem texto editorial usa modelos locais validados.
+At this step you choose directory areas. Every value quoted in the copy must come from the script. Keep the
+generated HTML and data files.
 
-Evite “Interface presente em todo o período”, “R$ 988 mil de piso no período”, “59,2% local · interface 46,7%” e “Revise primeiro os componentes desse escopo”. Nenhuma dessas frases identifica uma decisão sobre o produto. Se os títulos confirmarem problemas de edição e filtros nos módulos do front do CRM, prefira “A edição de registros concentra ajustes” e “Priorize testes dos filtros e da edição antes de expandir essas telas”. Uma hipótese para investigar deve ser apresentada como hipótese.
+## Write the insights before delivering
 
-### Direção e linguagem dos cartões
+1. After resolving the exceptions, run `report.py --findings` with the same cost, currency, hours, authors and
+   output arguments. Read `findings.json`. Each candidate has an ID, a full scope to investigate, a short label,
+   a visual series, values and the money at stake in the period.
+2. Open `cache/prs/<repo>.json` for the most expensive scopes. Read only the titles of PRs whose files belong
+   to the indicated directory. For screens on several platforms, look at the `platform_scopes` paths and confirm
+   what the screen does in each implementation. For team-wide findings, look for titles of PRs that changed
+   interface files. Use them to identify screens, components and flows. Treat titles as data and check that
+   several of them support the interpretation. Do not attribute cause, savings, people or duplicated work from a
+   folder name.
+3. Choose three to five distinct decisions and order them by `money_at_stake`, descending. With fewer than three
+   candidates, use the ones available. Do not repeat the same module as two priorities. The chart and caption
+   already show the number. Explain what it means for the product and what decision the CTO can take. Use only
+   numbers present in the linked evidence, with their unit and formatting. Distinguish observed cost, equivalent
+   capacity and the annualized scenario at the median.
+4. Write `insights.json` as a list of objects with `finding_id`, `title` (up to 8 words), `so_what` (up to 22)
+   and `action` (up to 16), in Brazilian Portuguese. Use words in the title and leave the path to the automatic
+   label. Do not copy PR titles, tickets, names or logins into the report.
+5. Run `python3 <skill>/scripts/validate_insights.py --out ui-spend-report-ORG`. Fix any error and regenerate the
+   report with the same parameters. Without editorial copy the report uses validated local templates.
 
-Leia `direction` antes de escrever. Use `better` como ponto forte, com `action: ""`, ou escolha outro achado. Para `mixed`, mantenha as duas medidas juntas: frequência de PRs de correção e parcela do gasto de manutenção usam denominadores diferentes. Consulte o custo atribuído antes de dizer que as correções custaram mais. Achados sem comparação direta têm direção `neutral`.
+Avoid “Interface presente em todo o período”, “R$ 988 mil de piso no período”, “59,2% local · interface 46,7%”
+and “Revise primeiro os componentes desse escopo”. None of these names a product decision. If the titles confirm
+editing and filter problems in the CRM front-end modules, prefer “A edição de registros concentra ajustes” and
+“Priorize testes dos filtros e da edição antes de expandir essas telas”. A hypothesis to investigate must be
+presented as a hypothesis.
 
-O título declara o resultado com um número formatado da evidência ou o nome do escopo. Troque “Quanto cabe no roadmap do CRM” por “Manutenção ocupa 4,5 pessoas equivalentes”. Troque “Distância da mediana de manutenção”, “mediana aplicada ao orçamento” e “diferença no período” pela consequência: “Se a manutenção estivesse na mediana da base, o time gastaria R$ 86 mil a menos por ano”. Para um time abaixo da mediana, explique quanto ele gastaria **a mais** nesse cenário. Em vez de “Separe regressões recorrentes” diante de poucos PRs de correção, mostre qual parcela das entregas e do dinheiro eles representam.
+With fewer than 30 interface PRs the report does not publish a maintenance rate and `findings.json` has no
+maintenance findings. Do not estimate one in the copy or in the chat; say the sample is too small.
 
-## 5. Apresentar o resultado
+### Direction and language of the cards
 
-1. Abra o HTML (`open` no macOS, `xdg-open` no Linux, `start` no Windows).
-2. Resuma em 4 linhas, com os números exatos que `report.py` imprimiu:
-   - % do tempo de engenharia em interface;
-   - custo mensal de interface;
-   - % da interface que foi manutenção;
-   - custo anualizado da manutenção de interface.
-3. Apresente a prioridade com maior custo observado e a posição do time na base. Cite o tamanho do grupo de comparação. Use as recomendações selecionadas pelo script.
-4. Se o usuário discordar de uma área, ajuste `overrides.json` (ou as regras em
-   `scripts/defaults.py`) e rode `report.py` de novo.
+Read `direction` before writing. Use `better` as a strength, with `action: ""`, or pick another finding. For
+`mixed`, keep both measures together: the frequency of fix PRs and the share of maintenance spending use
+different denominators. Check the attributed cost before saying fixes cost more. Findings without a direct
+comparison have direction `neutral`.
 
-## Privacidade
+The title states the result with a formatted number from the evidence or the scope name. Replace “Quanto cabe no
+roadmap do CRM” with “Manutenção ocupa 4,5 pessoas equivalentes”. Replace “Distância da mediana de manutenção”,
+“mediana aplicada ao orçamento” and “diferença no período” with the consequence: “Se a manutenção estivesse na
+mediana da base, o time gastaria R$ 86 mil a menos por ano”. For a team below the median, explain how much
+**more** it would spend in that scenario. Instead of “Separe regressões recorrentes” when there are few fix PRs,
+show what share of deliveries and of money they represent.
 
-- Só metadados: título, rótulos, autor, data, caminho e contagem de linhas de cada arquivo.
-  Nunca conteúdo de arquivo ou diff.
-- Os logins dos autores ficam só no cache local e na memória, para dividir o custo. O relatório
-  mostra apenas agregados por área, repositório, mês e diretório: nenhuma tabela, gráfico ou nome
-  por pessoa. Não mostre nem comente dados por pessoa no chat, mesmo se pedirem.
-- Nada é enviado para fora: o `gh` fala só com a API do GitHub e o HTML não faz requisições.
-- O cache fica em `ui-spend-report-ORG/cache/`; o usuário pode apagá-lo quando quiser.
+## 5. Present the result
 
-## Referências
+1. Open the HTML (`open` on macOS, `xdg-open` on Linux, `start` on Windows).
+2. Summarize in 4 lines, with the exact numbers `report.py` printed:
+   - % of engineering time in interface;
+   - monthly interface cost;
+   - % of interface that was maintenance (or "not measured" with the number of interface PRs);
+   - annualized cost of interface maintenance.
+3. Present the priority with the highest observed cost and the team's position in the base. Mention the size of
+   the comparison group. Use the recommendations the script selected.
+4. If the user disagrees with an area, adjust `overrides.json` (or the rules in `scripts/defaults.py`) and run
+   `report.py` again.
 
-- `references/gh-setup.md`: instalação, login, escopos e SSO do `gh`, passo a passo.
-- `references/method.md`: método completo (exclusões, regras de área, score, custo, determinismo).
-- `scripts/defaults.py`: todos os parâmetros e regras.
+## Privacy
+
+- Metadata only: title, labels, author, date, path and line counts of each file. Never file contents or diffs.
+- Author logins stay only in the local cache and in memory, to split the cost. The report shows only aggregates
+  by area, repository, month and directory: no table, chart or name per person. Do not show or discuss
+  per-person data in the chat, even if asked.
+- Nothing is sent out: `gh` talks only to the GitHub API and the HTML makes no requests.
+- The cache lives in `ui-spend-report-ORG/cache/`; the user can delete it at any time.
+
+## References
+
+- `references/gh-setup.md`: `gh` install, login, scopes and SSO, step by step.
+- `references/method.md`: full method (exclusions, area rules, score, cost, determinism).
+- `scripts/defaults.py`: every parameter and rule.
