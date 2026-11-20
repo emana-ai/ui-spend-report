@@ -273,8 +273,9 @@ class Round7(unittest.TestCase):
         self.assertEqual(base["percentiles"]["rework_share"]["p50"], round(r["rework"]["share"], 6))
         self.assertIn("Posição na base", report.render(r, base=base))
         asset = __import__("json").loads(benchmark.ASSET.read_text(encoding="utf-8"))
-        self.assertNotIn("rework_share", asset["percentiles"])  # Hermes recomputes the base; until then: hidden
-        self.assertNotIn("Posição na base", report.render(r, base=asset))
+        self.assertIn("rework_share", asset["percentiles"])  # Hermes rebuilt the 95-org base with rework (r7b)
+        self.assertGreater(asset["percentiles"]["rework_share"]["p50"], 0)
+        self.assertIn("Posição na base", report.render(r, base=asset))
         old = dict(r)
         old.pop("rework")
         self.assertIsNone(benchmark.aggregate([old])["points"][0]["rework_share"])  # pre-r7 reports
