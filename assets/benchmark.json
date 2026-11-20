@@ -1,92 +1,687 @@
 {
   "points": [
     {
-      "interface_share": 0.1732,
-      "interface_maintenance_share": 0.2897,
-      "fix_share": 0.25675675675675674,
+      "interface_share": 0.013,
+      "interface_maintenance_share": 0.251,
+      "fix_share": 0.10887096774193548,
+      "team_size": "50 ou mais",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.0355,
+      "interface_maintenance_share": 0.1459,
+      "fix_share": 0.1592920353982301,
+      "team_size": "50 ou mais",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.0369,
+      "interface_maintenance_share": 0.5408,
+      "fix_share": 0.19444444444444445,
+      "team_size": "até 19",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.0527,
+      "interface_maintenance_share": 0.5274,
+      "fix_share": 0.16129032258064516,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.0566,
+      "interface_maintenance_share": 0.5572,
+      "fix_share": 0.47560975609756095,
+      "team_size": "20–49",
+      "sector": "Automação"
+    },
+    {
+      "interface_share": 0.058,
+      "interface_maintenance_share": 0.1849,
+      "fix_share": 0.07317073170731707,
+      "team_size": "20–49",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.0682,
+      "interface_maintenance_share": 0.1209,
+      "fix_share": 0.1277258566978193,
+      "team_size": "50 ou mais",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.0783,
+      "interface_maintenance_share": 0.302,
+      "fix_share": 0.24166666666666667,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.1085,
+      "interface_maintenance_share": 0.3621,
+      "fix_share": 0.203125,
+      "team_size": "20–49",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.123,
+      "interface_maintenance_share": 0.4649,
+      "fix_share": 0.5220125786163522,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.1484,
+      "interface_maintenance_share": 0.2339,
+      "fix_share": 0.22580645161290322,
+      "team_size": "até 19",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.155,
+      "interface_maintenance_share": 0.2414,
+      "fix_share": 0.13577586206896552,
+      "team_size": "20–49",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.1621,
+      "interface_maintenance_share": 0.2865,
+      "fix_share": 0.21978021978021978,
+      "team_size": "50 ou mais",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.1711,
+      "interface_maintenance_share": 0.2886,
+      "fix_share": 0.26865671641791045,
       "team_size": "até 19",
       "sector": "Gestão de projetos"
     },
     {
-      "interface_share": 0.1937,
-      "interface_maintenance_share": 0.4961,
-      "fix_share": 0.4107142857142857,
-      "team_size": "até 19",
-      "sector": "Produtividade"
+      "interface_share": 0.1964,
+      "interface_maintenance_share": 0.6301,
+      "fix_share": 0.34911242603550297,
+      "team_size": "20–49",
+      "sector": "Comércio eletrônico"
     },
     {
-      "interface_share": 0.2278,
-      "interface_maintenance_share": 0.3919,
-      "fix_share": 0.37966234786022773,
+      "interface_share": 0.1972,
+      "interface_maintenance_share": 0.1267,
+      "fix_share": 0.08682170542635659,
+      "team_size": "50 ou mais",
+      "sector": "Governo e cidadania"
+    },
+    {
+      "interface_share": 0.1991,
+      "interface_maintenance_share": 0.2211,
+      "fix_share": 0.2682926829268293,
+      "team_size": "até 19",
+      "sector": "Gestão comercial"
+    },
+    {
+      "interface_share": 0.2126,
+      "interface_maintenance_share": 0.3883,
+      "fix_share": 0.37862176977290524,
       "team_size": "50 ou mais",
       "sector": "Automação"
     },
     {
-      "interface_share": 0.3019,
-      "interface_maintenance_share": 0.4072,
-      "fix_share": 0.4336283185840708,
+      "interface_share": 0.2127,
+      "interface_maintenance_share": 0.49,
+      "fix_share": 0.7023809523809523,
+      "team_size": "até 19",
+      "sector": "Governo e cidadania"
+    },
+    {
+      "interface_share": 0.2144,
+      "interface_maintenance_share": 0.2125,
+      "fix_share": 0.25996204933586337,
+      "team_size": "20–49",
+      "sector": "Segurança"
+    },
+    {
+      "interface_share": 0.2152,
+      "interface_maintenance_share": 0.3398,
+      "fix_share": 0.28870292887029286,
+      "team_size": "até 19",
+      "sector": "Comércio eletrônico"
+    },
+    {
+      "interface_share": 0.2238,
+      "interface_maintenance_share": 0.2399,
+      "fix_share": 0.203528670447385,
+      "team_size": "50 ou mais",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.2249,
+      "interface_maintenance_share": 0.5147,
+      "fix_share": 0.42718446601941745,
       "team_size": "até 19",
       "sector": "Ferramentas de desenvolvimento"
     },
     {
-      "interface_share": 0.3275,
-      "interface_maintenance_share": 0.1766,
-      "fix_share": 0.15571776155717762,
+      "interface_share": 0.2258,
+      "interface_maintenance_share": 0.3737,
+      "fix_share": 0.30120481927710846,
+      "team_size": "50 ou mais",
+      "sector": "Educação"
+    },
+    {
+      "interface_share": 0.2286,
+      "interface_maintenance_share": 0.4585,
+      "fix_share": 0.4263888888888889,
+      "team_size": "50 ou mais",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.2305,
+      "interface_maintenance_share": 0.3481,
+      "fix_share": 0.3903225806451613,
+      "team_size": "até 19",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.2335,
+      "interface_maintenance_share": 0.2357,
+      "fix_share": 0.2512479201331115,
+      "team_size": "20–49",
+      "sector": "Gestão de projetos"
+    },
+    {
+      "interface_share": 0.2406,
+      "interface_maintenance_share": 0.7288,
+      "fix_share": 0.8626907073509015,
+      "team_size": "até 19",
+      "sector": "Inteligência artificial"
+    },
+    {
+      "interface_share": 0.2475,
+      "interface_maintenance_share": 0.1827,
+      "fix_share": 0.14728682170542637,
+      "team_size": "20–49",
+      "sector": "Saúde"
+    },
+    {
+      "interface_share": 0.2504,
+      "interface_maintenance_share": 0.582,
+      "fix_share": 0.4795180722891566,
+      "team_size": "20–49",
+      "sector": "Produtividade"
+    },
+    {
+      "interface_share": 0.2556,
+      "interface_maintenance_share": 0.42,
+      "fix_share": 0.32751091703056767,
+      "team_size": "50 ou mais",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.2571,
+      "interface_maintenance_share": 0.1787,
+      "fix_share": 0.13091241989624658,
+      "team_size": "50 ou mais",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.2595,
+      "interface_maintenance_share": 0.3472,
+      "fix_share": 0.2963702963702964,
+      "team_size": "50 ou mais",
+      "sector": "Comércio eletrônico"
+    },
+    {
+      "interface_share": 0.2693,
+      "interface_maintenance_share": 0.2526,
+      "fix_share": 0.1157556270096463,
+      "team_size": "até 19",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.2699,
+      "interface_maintenance_share": 0.2433,
+      "fix_share": 0.2074074074074074,
+      "team_size": "20–49",
+      "sector": "Governo e cidadania"
+    },
+    {
+      "interface_share": 0.2699,
+      "interface_maintenance_share": 0.5113,
+      "fix_share": 0.5344827586206896,
+      "team_size": "até 19",
+      "sector": "Comércio eletrônico"
+    },
+    {
+      "interface_share": 0.2706,
+      "interface_maintenance_share": 0.392,
+      "fix_share": 0.3103448275862069,
+      "team_size": "50 ou mais",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.2768,
+      "interface_maintenance_share": 0.3155,
+      "fix_share": 0.2936802973977695,
+      "team_size": "50 ou mais",
+      "sector": "Finanças"
+    },
+    {
+      "interface_share": 0.2797,
+      "interface_maintenance_share": 0.3144,
+      "fix_share": 0.1834862385321101,
+      "team_size": "até 19",
+      "sector": "Comércio eletrônico"
+    },
+    {
+      "interface_share": 0.2822,
+      "interface_maintenance_share": 0.3733,
+      "fix_share": 0.3789004457652303,
+      "team_size": "20–49",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.2864,
+      "interface_maintenance_share": 0.263,
+      "fix_share": 0.2,
+      "team_size": "até 19",
+      "sector": "Gestão de projetos"
+    },
+    {
+      "interface_share": 0.2959,
+      "interface_maintenance_share": 0.4767,
+      "fix_share": 0.5061946902654867,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.2977,
+      "interface_maintenance_share": 0.3002,
+      "fix_share": 0.1883656509695291,
+      "team_size": "20–49",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.3028,
+      "interface_maintenance_share": 0.5608,
+      "fix_share": 0.43595505617977526,
+      "team_size": "20–49",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.3066,
+      "interface_maintenance_share": 0.4764,
+      "fix_share": 0.46788990825688076,
+      "team_size": "até 19",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.3101,
+      "interface_maintenance_share": 0.2504,
+      "fix_share": 0.20774883099532399,
+      "team_size": "50 ou mais",
+      "sector": "Produtividade"
+    },
+    {
+      "interface_share": 0.3109,
+      "interface_maintenance_share": 0.2191,
+      "fix_share": 0.1912251655629139,
+      "team_size": "50 ou mais",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.3227,
+      "interface_maintenance_share": 0.1722,
+      "fix_share": 0.15705902657921988,
       "team_size": "50 ou mais",
       "sector": "Análise de dados"
     },
     {
-      "interface_share": 0.3312,
-      "interface_maintenance_share": 0.4523,
-      "fix_share": 0.5631868131868132,
+      "interface_share": 0.3229,
+      "interface_maintenance_share": 0.1824,
+      "fix_share": 0.15853658536585366,
       "team_size": "até 19",
-      "sector": "Pesquisa"
+      "sector": "Gestão comercial"
     },
     {
-      "interface_share": 0.345,
-      "interface_maintenance_share": 0.2225,
-      "fix_share": 0.19295774647887323,
+      "interface_share": 0.3235,
+      "interface_maintenance_share": 0.2731,
+      "fix_share": 0.2001733102253033,
+      "team_size": "20–49",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.3245,
+      "interface_maintenance_share": 0.4029,
+      "fix_share": 0.3418918918918919,
+      "team_size": "20–49",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.3381,
+      "interface_maintenance_share": 0.4049,
+      "fix_share": 0.41694078947368424,
       "team_size": "50 ou mais",
-      "sector": "Colaboração"
+      "sector": "Governo e cidadania"
     },
     {
-      "interface_share": 0.4026,
-      "interface_maintenance_share": 0.5008,
-      "fix_share": 0.42638623326959846,
+      "interface_share": 0.3424,
+      "interface_maintenance_share": 0.329,
+      "fix_share": 0.34958556801560214,
+      "team_size": "50 ou mais",
+      "sector": "Segurança"
+    },
+    {
+      "interface_share": 0.3477,
+      "interface_maintenance_share": 0.4367,
+      "fix_share": 0.5561643835616439,
       "team_size": "até 19",
-      "sector": "Atendimento"
+      "sector": "Análise de dados"
     },
     {
-      "interface_share": 0.4124,
-      "interface_maintenance_share": 0.4668,
-      "fix_share": 0.20117416829745596,
+      "interface_share": 0.3479,
+      "interface_maintenance_share": 0.4907,
+      "fix_share": 0.545727136431784,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.3488,
+      "interface_maintenance_share": 0.3153,
+      "fix_share": 0.15376202974628173,
+      "team_size": "50 ou mais",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.3545,
+      "interface_maintenance_share": 0.6925,
+      "fix_share": 0.5544768069039914,
+      "team_size": "50 ou mais",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.3626,
+      "interface_maintenance_share": 0.1594,
+      "fix_share": 0.13656957928802588,
+      "team_size": "50 ou mais",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.365,
+      "interface_maintenance_share": 0.8461,
+      "fix_share": 0.7906976744186046,
+      "team_size": "até 19",
+      "sector": "Segurança"
+    },
+    {
+      "interface_share": 0.367,
+      "interface_maintenance_share": 0.4614,
+      "fix_share": 0.3340438489646772,
+      "team_size": "20–49",
+      "sector": "Inteligência artificial"
+    },
+    {
+      "interface_share": 0.3685,
+      "interface_maintenance_share": 0.1482,
+      "fix_share": 0.28,
+      "team_size": "até 19",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.3698,
+      "interface_maintenance_share": 0.2091,
+      "fix_share": 0.22695035460992907,
+      "team_size": "20–49",
+      "sector": "Saúde"
+    },
+    {
+      "interface_share": 0.3745,
+      "interface_maintenance_share": 0.2185,
+      "fix_share": 0.2459016393442623,
+      "team_size": "até 19",
+      "sector": "Comércio eletrônico"
+    },
+    {
+      "interface_share": 0.3755,
+      "interface_maintenance_share": 0.5016,
+      "fix_share": 0.2074042911232646,
       "team_size": "20–49",
       "sector": "Gestão comercial"
     },
     {
-      "interface_share": 0.4175,
-      "interface_maintenance_share": 0.7111,
-      "fix_share": 0.574468085106383,
+      "interface_share": 0.3758,
+      "interface_maintenance_share": 0.387,
+      "fix_share": 0.3624454148471616,
+      "team_size": "20–49",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.3759,
+      "interface_maintenance_share": 0.3848,
+      "fix_share": 0.254259501965924,
+      "team_size": "20–49",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.3839,
+      "interface_maintenance_share": 0.4815,
+      "fix_share": 0.41935483870967744,
+      "team_size": "até 19",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.3858,
+      "interface_maintenance_share": 0.4108,
+      "fix_share": 0.3134715025906736,
+      "team_size": "20–49",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.3894,
+      "interface_maintenance_share": 0.4848,
+      "fix_share": 0.4644628099173554,
+      "team_size": "20–49",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.402,
+      "interface_maintenance_share": 0.4911,
+      "fix_share": 0.44242424242424244,
+      "team_size": "20–49",
+      "sector": "Saúde"
+    },
+    {
+      "interface_share": 0.403,
+      "interface_maintenance_share": 0.3504,
+      "fix_share": 0.427536231884058,
+      "team_size": "até 19",
+      "sector": "Educação"
+    },
+    {
+      "interface_share": 0.4079,
+      "interface_maintenance_share": 0.4901,
+      "fix_share": 0.4211469534050179,
+      "team_size": "até 19",
+      "sector": "Atendimento"
+    },
+    {
+      "interface_share": 0.4113,
+      "interface_maintenance_share": 0.2119,
+      "fix_share": 0.29346622369878184,
+      "team_size": "20–49",
+      "sector": "Análise de dados"
+    },
+    {
+      "interface_share": 0.425,
+      "interface_maintenance_share": 0.2265,
+      "fix_share": 0.23492063492063492,
+      "team_size": "até 19",
+      "sector": "Ferramentas de desenvolvimento"
+    },
+    {
+      "interface_share": 0.4305,
+      "interface_maintenance_share": 0.2299,
+      "fix_share": 0.2413793103448276,
+      "team_size": "20–49",
+      "sector": "Finanças"
+    },
+    {
+      "interface_share": 0.4347,
+      "interface_maintenance_share": 0.1638,
+      "fix_share": 0.16687192118226601,
+      "team_size": "50 ou mais",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.4394,
+      "interface_maintenance_share": 0.4423,
+      "fix_share": 0.5666666666666667,
+      "team_size": "até 19",
+      "sector": "Dados e infraestrutura"
+    },
+    {
+      "interface_share": 0.4396,
+      "interface_maintenance_share": 0.3604,
+      "fix_share": 0.47509578544061304,
+      "team_size": "20–49",
+      "sector": "Educação"
+    },
+    {
+      "interface_share": 0.4399,
+      "interface_maintenance_share": 0.667,
+      "fix_share": 0.5642857142857143,
       "team_size": "até 19",
       "sector": "Documentos"
+    },
+    {
+      "interface_share": 0.4503,
+      "interface_maintenance_share": 0.388,
+      "fix_share": 0.40816326530612246,
+      "team_size": "50 ou mais",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.4575,
+      "interface_maintenance_share": 0.4533,
+      "fix_share": 0.42538825118163404,
+      "team_size": "até 19",
+      "sector": "Gestão comercial"
+    },
+    {
+      "interface_share": 0.4641,
+      "interface_maintenance_share": 0.5604,
+      "fix_share": 0.6348920863309353,
+      "team_size": "20–49",
+      "sector": "Colaboração"
+    },
+    {
+      "interface_share": 0.466,
+      "interface_maintenance_share": 0.3166,
+      "fix_share": 0.4067547723935389,
+      "team_size": "até 19",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.4716,
+      "interface_maintenance_share": 0.2009,
+      "fix_share": 0.1700787401574803,
+      "team_size": "20–49",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.4724,
+      "interface_maintenance_share": 0.4761,
+      "fix_share": 0.4421052631578947,
+      "team_size": "até 19",
+      "sector": "Gestão de projetos"
+    },
+    {
+      "interface_share": 0.4742,
+      "interface_maintenance_share": 0.2163,
+      "fix_share": 0.19533527696793002,
+      "team_size": "20–49",
+      "sector": "Comunicação"
+    },
+    {
+      "interface_share": 0.4891,
+      "interface_maintenance_share": 0.5546,
+      "fix_share": 0.6020539152759948,
+      "team_size": "até 19",
+      "sector": "Colaboração"
+    },
+    {
+      "interface_share": 0.5148,
+      "interface_maintenance_share": 0.5283,
+      "fix_share": 0.5013297872340425,
+      "team_size": "20–49",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.5737,
+      "interface_maintenance_share": 0.1811,
+      "fix_share": 0.28076923076923077,
+      "team_size": "até 19",
+      "sector": "Finanças"
+    },
+    {
+      "interface_share": 0.6031,
+      "interface_maintenance_share": 0.1935,
+      "fix_share": 0.0963855421686747,
+      "team_size": "20–49",
+      "sector": "Educação"
+    },
+    {
+      "interface_share": 0.612,
+      "interface_maintenance_share": 0.4123,
+      "fix_share": 0.38670411985018727,
+      "team_size": "50 ou mais",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.6214,
+      "interface_maintenance_share": 0.6583,
+      "fix_share": 0.5573529411764706,
+      "team_size": "até 19",
+      "sector": "Conteúdo e publicação"
+    },
+    {
+      "interface_share": 0.6403,
+      "interface_maintenance_share": 0.5832,
+      "fix_share": 0.5860058309037901,
+      "team_size": "até 19",
+      "sector": "Documentos"
+    },
+    {
+      "interface_share": 0.656,
+      "interface_maintenance_share": 0.2479,
+      "fix_share": 0.23577235772357724,
+      "team_size": "até 19",
+      "sector": "Navegação e mídia"
+    },
+    {
+      "interface_share": 0.7853,
+      "interface_maintenance_share": 0.4705,
+      "fix_share": 0.4566929133858268,
+      "team_size": "até 19",
+      "sector": "Colaboração"
     }
   ],
-  "prs_scored": 26510,
+  "prs_scored": 208743,
   "percentiles": {
     "interface_share": {
-      "p25": 0.246325,
-      "p50": 0.32935,
-      "p75": 0.3882
+      "p25": 0.2272,
+      "p50": 0.3227,
+      "p75": 0.40545
     },
     "interface_maintenance_share": {
-      "p25": 0.31525,
-      "p50": 0.42975,
-      "p75": 0.488775
+      "p25": 0.2348,
+      "p50": 0.3604,
+      "p75": 0.4791
     },
     "fix_share": {
-      "p25": 0.21507,
-      "p50": 0.395188,
-      "p75": 0.431818
+      "p25": 0.201649,
+      "p50": 0.29637,
+      "p75": 0.43903
     }
   }
 }
