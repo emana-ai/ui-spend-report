@@ -295,10 +295,10 @@ def facts(r, base):
                  segunda_meses=span(tr["second_months"]))
     rw = r.get("rework")
     if rw and rw["share"] is not None:
-        out["retrabalho"].update(fatia=pct(rw["share"], 1), dias=str(D.REWORK_DAYS), seguinte=money(rw["followup_cost"], cur),
-                                 prs_seguinte=num(rw["followup_prs"]), prs_novos=num(rw["new_prs"]),
-                                 prs_com_manutencao=num(rw["reworked_prs"]), custo=money(rw["reworked_cost"], cur),
-                                 custo_novo=money(rw["new_cost"], cur))
+        # Owner 20/11: rework is told in percentages, not money (no R$ facts here, so the validator rejects R$).
+        out["retrabalho"].update(fatia=pct(rw["share"], 1), dias=str(D.REWORK_DAYS), prs_novos=num(rw["new_prs"]),
+                                 prs_pct=pct(rw["reworked_prs"] / rw["new_prs"], 1) if rw["new_prs"] else "0%",
+                                 seguinte_pct=pct(rw["followup_cost"] / rw["new_cost"], 1) if rw["new_cost"] else "0%")
     rows = comparisons(r, base)
     cmp_base = []
     if rows:
@@ -359,7 +359,8 @@ def fallback(doc):
     if rw:
         out["retrabalho"] = dict(
             title=f"{rw['fatia']} do trabalho novo em interface recebeu manutenção em até {rw['dias']} dias",
-            evidence=[f"Essa manutenção seguinte custou {rw['seguinte']}, em {rw['prs_seguinte']} PRs."])
+            evidence=[f"Em {rw['prs_pct']} dos PRs de trabalho novo algum arquivo recebeu manutenção depois; essa manutenção "
+                      f"equivale a {rw['seguinte_pct']} do custo do trabalho novo."])
     if cmp:
         key = "interface_maintenance_share" if "interface_maintenance_share" in cmp else "interface_share"
         name = "fatia de manutenção" if key != "interface_share" else "fatia de interface"

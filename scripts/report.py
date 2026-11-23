@@ -684,11 +684,10 @@ def render(r, copy=None, base=None):
     rw, body = r["rework"], ""
     if rw and rw["share"] is not None:
         body = fig(f"Trabalho novo seguido de manutenção em até {defaults.REWORK_DAYS} dias",
-                   f'Custo de trabalho novo em interface, arquivo por arquivo. Amostra: {num(rw["new_prs"])} PRs de trabalho novo, '
-                   f'{num(rw["reworked_prs"])} com manutenção depois em algum arquivo. Essa manutenção seguinte custou '
-                   f'{M(rw["followup_cost"])}, em {num(rw["followup_prs"])} PRs.',
-                   split([("Com manutenção depois", rw["share"], f'{pct(rw["share"], 1)} · {M(rw["reworked_cost"])}', True),
-                          ("Sem manutenção depois", 1 - rw["share"], f'{pct(1 - rw["share"], 1)} · {M(rw["new_cost"] - rw["reworked_cost"])}', False)])
+                   f'Parte do custo de trabalho novo em interface, arquivo por arquivo, em {num(rw["new_prs"])} PRs de trabalho '
+                   f'novo com {defaults.REWORK_DAYS} dias de observação.',
+                   split([("Com manutenção depois", rw["share"], pct(rw["share"], 1), True),
+                          ("Sem manutenção depois", 1 - rw["share"], pct(1 - rw["share"], 1), False)])
                    + f'<p class="limit">Só entram PRs mergeados até {defaults.REWORK_DAYS} dias antes do fim do período. '
                      'Manutenção vem do título e dos rótulos.</p>')
         section(4, "retrabalho", body)
