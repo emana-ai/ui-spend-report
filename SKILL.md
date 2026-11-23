@@ -144,7 +144,7 @@ no actions, no advice, no targets, no "if you were at the median you would save"
    ```
 
    - `headline` (up to 28 words, at least two numbers) is the main finding as a full sentence, like the title of an
-     article: “Metade do que a twentyhq gasta em interface é manutenção: 50% do custo, R$ 1,1 mi por ano no ritmo
+     article: “Metade do que a empresa gasta em interface é manutenção: 50% do custo, R$ 1,1 mi por ano no ritmo
      atual.” Pick the finding that matters most for this team, not always the same one.
    - `lede` (up to 75 words) synthesizes the whole diagnosis with numbers: cost, where maintenance sits, how it moved,
      rework. It may cite any section's numbers.

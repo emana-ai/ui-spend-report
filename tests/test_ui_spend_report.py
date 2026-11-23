@@ -33,7 +33,7 @@ class Classify(unittest.TestCase):
             "apps/web/pages/api/users.ts": "backend",
             "server/channels/app/post.go": "backend",
             "apps/api/plane/views.py": "backend",
-            "src/metabase/query_processor.clj": "backend",
+            "src/app/query_processor.clj": "backend",
             "src/components/Button.test.tsx": "interface",  # unit tests follow the tested code (round 2)
             "spec/models/user_spec.rb": "backend",
             "server/app/post_test.go": "backend",
