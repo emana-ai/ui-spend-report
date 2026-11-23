@@ -585,7 +585,7 @@ def render(r, copy=None, base=None):
 <h1>{lit(copy["headline"])}</h1>{f'<p class="lede">{e(copy["lede"])}</p>' if copy["lede"] else ""}
 <div class="meta"><b>UI Spend Report</b><span>Período: {period}</span><span>Fontes: {num(c['prs_scored'])} {'PR' if c['prs_scored'] == 1 else 'PRs'} com custo atribuído em {c['repos']} {'repositório' if c['repos'] == 1 else 'repositórios'} de {org} no GitHub</span><span>Gerado em: {d}/{mth}/{y}</span></div>
 <div class="kpis">"""]
-    for value, label in [(pct(h["interface_share"]) if r["cost"]["team_total"] else "—", "do esforço de engenharia em interface"),
+    for value, label in [(pct(h["interface_share"]) if r["cost"]["team_total"] else "—", "do custo de desenvolvimento em interface"),
                          (money(h["interface_monthly_cost"], cur), "por mês em interface"),
                          (pct(h["interface_maintenance_share"]) if measured and ui["cost"] else "—", "da interface em manutenção"),
                          (money(h["interface_maintenance_annual_cost"], cur) if measured else "—", "de manutenção por ano, no ritmo atual")]:
@@ -608,7 +608,7 @@ def render(r, copy=None, base=None):
     if r["cost"]["team_total"]:
         areas = [a for a in r["areas"] if a["cost"] > 0]
         lead = max((a["share"] for a in areas), default=1) or 1
-        body.append(fig("Para onde foi o custo de engenharia",
+        body.append(fig("Para onde foi o custo de desenvolvimento",
                         f"Custo atribuído aos PRs de {period}, dividido pelas linhas efetivas de cada área. "
                         f"Total: {M(r['cost']['team_monthly'])} por mês. Interface em luz.",
                         bars([(AREA_LABELS[a["area"]], a["share"] / lead,

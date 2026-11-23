@@ -45,7 +45,7 @@ class Benchmark(unittest.TestCase):
         base = benchmark.aggregate(rows, {"product-0": "Colaboração"})
         self.assertEqual(len(base["points"]), 100)
         self.assertIn("Colaboração", [p["sector"] for p in base["points"]])
-        row = dict(label="Esforço em interface", values=[p["interface_share"] for p in base["points"]], value=0.5, median=0.2)
+        row = dict(label="Custo de desenvolvimento em interface", values=[p["interface_share"] for p in base["points"]], value=0.5, median=0.2)
         self.assertEqual(report.field(row).count("<circle "), 100)  # one quiet point per company
         self.assertEqual(report.field(row).count('class="pt on"'), 1)  # the team: the one lit point
 
@@ -188,7 +188,7 @@ class Insights(unittest.TestCase):
         copy_ = insights.fallback(doc)
         self.assertEqual(set(copy_["sections"]), {s["id"] for s in doc["sections"] if s["facts"]})
         self.assertEqual(validate(doc, copy_), copy_)
-        self.assertEqual(copy_["headline"], "A interface ficou com 20% do esforço de engenharia, e 70% desse custo "
+        self.assertEqual(copy_["headline"], "A interface ficou com 20% do custo de desenvolvimento, e 70% desse custo "
                                             "foi manutenção do que já existia.")
 
     def test_validation(self):
@@ -197,7 +197,7 @@ class Insights(unittest.TestCase):
         good = insights.fallback(doc)
         for path, value, error in [
             (("headline",), "A interface custou R$ 999 mil", "número sem evidência"),
-            (("headline",), "A interface ficou com 20% do esforço", "dois números"),
+            (("headline",), "A interface ficou com 20% do custo de desenvolvimento", "dois números"),
             (("headline",), "20% e R$ 20 " + "palavra " * 27, "limite de 28"),
             (("lede",), "palavra " * 76, "limite de 75"),
             (("sections", "custo", "title"), "Manutenção baixa em sample", "título precisa de um número"),
@@ -207,6 +207,7 @@ class Insights(unittest.TestCase):
             (("sections", "custo", "evidence"), ["a", "b", "c"], "uma ou duas frases"),
             (("sections", "custo", "evidence"), ["palavra " * 41], "limite de 40"),
             (("sections", "custo", "evidence"), ["Reduza R$ 20 por mês"], "não recomenda"),
+            (("sections", "custo", "evidence"), ["A interface usa parte do esforço de engenharia"], "custo de desenvolvimento"),
         ]:
             changed = copy.deepcopy(good)
             target = changed

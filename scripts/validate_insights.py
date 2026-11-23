@@ -11,6 +11,7 @@ NUMBER = re.compile(r"(?<!\w)(?:(?:R\$|US\$|€|£)\s*)?[+−-]?\d+(?:[.,]\d+)*(
 LOW = r"(?:baixa|reduzida|inferior|abaixo)"
 HIGH = r"(?:alta|elevada|superior|acima)"
 # The report diagnoses; it never prescribes. Imperatives and advice phrases, matched without accents.
+TERM = re.compile(r"\b(?:esforco|custo|tempo|gasto)s? (?:de|da|do) engenharia\b|\bengenharia\b", re.I)
 PRESCRIPTION = re.compile(
     r"\b(?:defina|revise|teste|testem|priorize|considere|recomendamos|recomenda-se|recomendo|sugerimos|sugere-se|"
     r"sugiro|deveria|deveriam|devemos|e preciso|e necessario|vale a pena|convem|reduza|invista|adote|crie|implemente|"
@@ -65,6 +66,8 @@ def validate(doc, copy):
             raise ValueError("headline: o achado principal com pelo menos dois números")
         if kind == "title" and not numbers:
             raise ValueError(f"{name}: título precisa de um número da evidência")
+        if TERM.search(plain(text)):  # owner 20/11: the measure is "custo de desenvolvimento"
+            raise ValueError(f"{name}: use «custo de desenvolvimento», não «esforço/custo/tempo de engenharia»")
         word = PRESCRIPTION.search(plain(text))
         if word:
             raise ValueError(f"{name}: o relatório diagnostica, não recomenda («{word[0]}»)")

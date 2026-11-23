@@ -119,7 +119,7 @@ Marcadores de módulo Android são identificados nos caminhos observados em todo
 
 ## Os quatro números
 
-1. Fatia do tempo de engenharia em interface = custo de interface / custo do time.
+1. Fatia do custo de desenvolvimento em interface = custo de interface / custo do time.
 2. Custo mensal de interface = custo de interface no período / meses.
 3. Fatia de manutenção = custo de manutenção de interface / custo de interface.
 4. Manutenção anualizada = custo de manutenção de interface / meses × 12.
@@ -133,7 +133,7 @@ O HTML usa a data da coleta, não a data de hoje. Mesmo cache + mesmos parâmetr
 
 A unidade da base é a empresa. Cada empresa tem o mesmo peso. Os quartis usam interpolação linear entre observações ordenadas. A posição do time é a fração de empresas com valor estritamente menor, na base inteira (não há recorte por porte de time). Empates ficam fora do numerador. Sem custo de interface, a taxa de manutenção é indefinida.
 
-A seção "Como vocês se comparam" mostra, para esforço em interface, manutenção, retrabalho em 30 dias e frequência de correções, cada empresa da base como um ponto e o time como o ponto aceso, com a mediana marcada. Uma métrica aparece só com quatro ou mais empresas com valor (`BENCH_MIN`) e com o valor do time publicado.
+A seção "Como vocês se comparam" mostra, para custo de desenvolvimento em interface, manutenção, retrabalho em 30 dias e frequência de correções, cada empresa da base como um ponto e o time como o ponto aceso, com a mediana marcada. Uma métrica aparece só com quatro ou mais empresas com valor (`BENCH_MIN`) e com o valor do time publicado.
 
 `report.py --findings` grava todas as evidências antes da seleção editorial. A ordem usa dinheiro no período
 observado. Os valores dos cartões podem se sobrepor.

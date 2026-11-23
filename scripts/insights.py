@@ -230,7 +230,7 @@ SECTIONS = (
     ("comparacao", "Como vocês se comparam", ()),
 )
 BASE_METRICS = (
-    ("interface_share", "Esforço em interface"),
+    ("interface_share", "Custo de desenvolvimento em interface"),
     ("interface_maintenance_share", "Manutenção da interface"),
     ("rework_share", f"Retrabalho em {D.REWORK_DAYS} dias"),
     ("fix_share", "Frequência de correções"),
@@ -325,9 +325,9 @@ def fallback(doc):
     if not c:
         return dict(headline="O período não teve PRs com custo atribuído.", lede="", sections={})
     measured = "manutencao" in c
-    headline = (f"A interface ficou com {c['fatia']} do esforço de engenharia, e {c['manutencao']} desse custo foi "
+    headline = (f"A interface ficou com {c['fatia']} do custo de desenvolvimento, e {c['manutencao']} desse custo foi "
                 "manutenção do que já existia." if measured else
-                f"A interface ficou com {c['fatia']} do esforço de engenharia, {c['mensal']} por mês.")
+                f"A interface ficou com {c['fatia']} do custo de desenvolvimento, {c['mensal']} por mês.")
     lede = [f"Entre {c['inicio']} e {c['fim']}, {doc['org']} gastou {c['periodo']} em interface, o equivalente a "
             f"{c['pessoas']} pessoas em tempo integral."]
     if measured:
@@ -341,7 +341,7 @@ def fallback(doc):
     out["custo"] = dict(
         title=(f"Manutenção ocupa {c['manutencao_pessoas']} das {c['pessoas']} pessoas equivalentes da interface"
                if measured else f"A interface ocupa {c['pessoas']} pessoas equivalentes"),
-        evidence=[f"A interface custou {c['periodo']} no período, {c['fatia']} do custo de engenharia atribuído aos PRs."]
+        evidence=[f"A interface custou {c['periodo']} no período, {c['fatia']} do custo de desenvolvimento atribuído aos PRs."]
         + ([f"Manutenção foi {c['manutencao']} desse custo, {c['manutencao_ano']} por ano no ritmo atual."] if measured else []))
     if m:
         out["manutencao"] = dict(

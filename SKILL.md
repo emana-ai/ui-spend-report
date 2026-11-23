@@ -157,6 +157,8 @@ no actions, no advice, no targets, no "if you were at the median you would save"
      `quanto`, `evidence`), with their unit and formatting. The headline and lede may use any section's.
    - A position in the base or a median (`comparacao` facts ending in `_posicao` or `_mediana`) appears in one
      field only, across the whole document.
+   - The measure is the **development cost** (“custo de desenvolvimento”): “A interface ficou com 38% do custo de
+     desenvolvimento”. Never “esforço/custo/tempo de engenharia” (the validator rejects “engenharia”).
    - No prescriptive language: no imperatives or advice (`defina`, `revise`, `teste`, `priorize`, `considere`,
      `recomendamos`, `sugerimos`, `deveria`, `é preciso`, `vale a pena`, `reduza`, `invista`, `adote`, `crie`,
      `implemente`, `migre`, `mova`, `comece`…). Do not copy PR titles, tickets, names or logins into the report.

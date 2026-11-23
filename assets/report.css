@@ -76,7 +76,7 @@ rect.maint{fill:var(--calm)}rect.new,rect.all{fill:var(--neutral)}
 .legend .maint{background:var(--calm)}.legend .new{background:var(--neutral)}
 .plot{position:relative}
 .bars{display:grid;gap:12px;margin-top:20px}
-.bars .row{display:grid;grid-template-columns:168px minmax(0,1fr) 200px;gap:16px;align-items:center}
+.bars .row{display:grid;grid-template-columns:168px minmax(96px,1fr) max-content;gap:16px;align-items:center}
 .bars span{font:15px var(--body);color:var(--muted)}.bars .on span{color:var(--text)}
 .track{height:10px;border-radius:2px;background:rgba(255,255,255,.035)}
 .track i{display:block;height:100%;border-radius:2px;background:var(--neutral);transform-origin:left}
